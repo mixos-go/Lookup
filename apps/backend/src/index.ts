@@ -3,41 +3,37 @@ import cors from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
 import { env } from './utils/env';
 import { logger } from './utils/logger';
 import { registerRoutes } from './modules';
+import { registerErrorHandler } from './middleware/errorHandler';
 import { prisma } from './database/client';
 import { redis } from './cache/redis';
 
 const app = Fastify({ logger: false });
 
-async function bootstrap() {
-  // Plugins
+async function bootstrap(): Promise<void> {
   await app.register(helmet);
   await app.register(cors, { origin: env.CORS_ORIGIN });
   await app.register(jwt, { secret: env.JWT_SECRET });
   await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });
+  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
 
-  // Routes
+  registerErrorHandler(app);
   await registerRoutes(app);
 
-  // Health check
   app.get('/health', async () => ({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    services: {
-      database: 'connected',
-      redis: 'connected',
-    },
+    services: { database: 'connected', redis: 'connected' },
   }));
 
-  // Start
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
   logger.info(`Server running on port ${env.PORT}`);
 }
 
-// Graceful shutdown
-const shutdown = async () => {
+const shutdown = async (): Promise<void> => {
   await app.close();
   await prisma.$disconnect();
   await redis.quit();

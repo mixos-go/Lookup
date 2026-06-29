@@ -1,6 +1,7 @@
-// src/screens/ProductListScreen.tsx
 import React, { useState, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { FlashList } from '@shopify/flash-list';
 import { useNavigation } from '@react-navigation/native';
@@ -16,10 +17,10 @@ import { QUERY_KEYS } from '@/constants/queryKeys';
 import { useShopStore } from '@/stores/shopStore';
 import { useBulkStore } from '@/stores/bulkStore';
 import { productsApi } from '@/api/index';
+import { useSyncProducts } from '@/hooks/useProducts';
 import type { RootStackParamList, ProductSummary } from '@/types';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
-
 type StatusFilter = 'ALL' | 'ACTIVE' | 'SOLD_OUT';
 
 const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
@@ -53,13 +54,15 @@ const skeletonStyles = StyleSheet.create({
 export function ProductListScreen() {
   const navigation = useNavigation<Nav>();
   const { activeShopId, getActiveShop } = useShopStore();
-  const { isSelectMode, selectedProducts, enterSelectMode, toggleProduct, selectAll, isSelected } = useBulkStore();
+  const { isSelectMode, selectedProducts, enterSelectMode, toggleProduct, selectAll, isSelected } =
+    useBulkStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
 
   const activeShop = getActiveShop();
+  const syncMutation = useSyncProducts();
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: QUERY_KEYS.products(activeShopId ?? '', { search, status: statusFilter }),
     queryFn: () =>
       productsApi.list({ shopId: activeShopId!, search, status: statusFilter }),
@@ -68,37 +71,71 @@ export function ProductListScreen() {
 
   const products: ProductSummary[] = data?.data?.products ?? [];
 
-  const handlePress = useCallback((product: ProductSummary) => {
-    if (isSelectMode) {
-      toggleProduct(product);
-    } else {
-      navigation.navigate('ProductDetail', {
-        productId: product.id,
-        shopId: activeShopId!,
-        productName: product.name,
-      });
-    }
-  }, [isSelectMode, activeShopId]);
+  const handleSync = useCallback(async () => {
+    if (!activeShopId || syncMutation.isPending) return;
+    await syncMutation.mutateAsync(activeShopId);
+    refetch();
+  }, [activeShopId, syncMutation, refetch]);
 
-  const handleLongPress = useCallback((product: ProductSummary) => {
-    if (!isSelectMode) enterSelectMode();
-    toggleProduct(product);
-  }, [isSelectMode]);
-
-  const renderItem = ({ item }: { item: ProductSummary }) => (
-    <ProductCard
-      product={item}
-      platform={activeShop?.platform ?? 'SHOPEE'}
-      isSelectMode={isSelectMode}
-      isSelected={isSelected(item.id)}
-      onPress={() => handlePress(item)}
-      onLongPress={() => handleLongPress(item)}
-    />
+  const handlePress = useCallback(
+    (product: ProductSummary) => {
+      if (isSelectMode) {
+        toggleProduct(product);
+      } else {
+        navigation.navigate('ProductDetail', {
+          productId: product.id,
+          shopId: activeShopId!,
+          productName: product.name,
+        });
+      }
+    },
+    [isSelectMode, activeShopId, navigation, toggleProduct],
   );
+
+  const handleLongPress = useCallback(
+    (product: ProductSummary) => {
+      if (!isSelectMode) enterSelectMode();
+      toggleProduct(product);
+    },
+    [isSelectMode, enterSelectMode, toggleProduct],
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: ProductSummary }) => (
+      <ProductCard
+        product={item}
+        platform={activeShop?.platform ?? 'SHOPEE'}
+        isSelectMode={isSelectMode}
+        isSelected={isSelected(item.id)}
+        onPress={() => handlePress(item)}
+        onLongPress={() => handleLongPress(item)}
+      />
+    ),
+    [activeShop, isSelectMode, isSelected, handlePress, handleLongPress],
+  );
+
+  const isSyncing = syncMutation.isPending;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
-      <ShopSelector />
+      {/* Shop Selector + Sync Button */}
+      <View style={styles.topBar}>
+        <View style={styles.shopSelectorWrap}>
+          <ShopSelector />
+        </View>
+        <TouchableOpacity
+          style={[styles.syncBtn, isSyncing && styles.syncBtnDisabled]}
+          onPress={handleSync}
+          disabled={isSyncing || !activeShopId}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          {isSyncing ? (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          ) : (
+            <Feather name="refresh-cw" size={18} color={Colors.primary} />
+          )}
+        </TouchableOpacity>
+      </View>
 
       {/* Search */}
       <View style={styles.searchRow}>
@@ -136,11 +173,21 @@ export function ProductListScreen() {
               onPress={() => setStatusFilter(f.key)}
               style={[styles.filterChip, statusFilter === f.key && styles.filterChipActive]}
             >
-              <Text style={[styles.filterLabel, statusFilter === f.key && styles.filterLabelActive]}>
+              <Text
+                style={[styles.filterLabel, statusFilter === f.key && styles.filterLabelActive]}
+              >
                 {f.label}
               </Text>
             </TouchableOpacity>
           ))}
+        </View>
+      )}
+
+      {/* Sync in-progress banner */}
+      {isSyncing && (
+        <View style={styles.syncBanner}>
+          <ActivityIndicator size="small" color={Colors.info} />
+          <Text style={styles.syncBannerText}>Menyinkronkan produk dari marketplace...</Text>
         </View>
       )}
 
@@ -152,12 +199,18 @@ export function ProductListScreen() {
           renderItem={renderItem}
           estimatedItemSize={85}
           onRefresh={refetch}
-          refreshing={false}
+          refreshing={isRefetching}
           keyExtractor={(item) => item.id}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Feather name="package" size={40} color={Colors.placeholder} />
               <Text style={styles.emptyText}>Tidak ada produk ditemukan</Text>
+              {!!activeShopId && (
+                <TouchableOpacity style={styles.emptySync} onPress={handleSync}>
+                  <Feather name="refresh-cw" size={14} color={Colors.primary} />
+                  <Text style={styles.emptySyncLabel}>Sinkronkan dari marketplace</Text>
+                </TouchableOpacity>
+              )}
             </View>
           }
         />
@@ -170,6 +223,29 @@ export function ProductListScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: 12,
+  },
+  shopSelectorWrap: { flex: 1 },
+  syncBtn: {
+    width: 36, height: 36,
+    borderRadius: 10,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  syncBtnDisabled: { opacity: 0.5 },
+  syncBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: Colors.infoLight,
+  },
+  syncBannerText: { fontSize: 13, color: Colors.info, flex: 1 },
   searchRow: { paddingHorizontal: 16, paddingBottom: 8 },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -196,4 +272,11 @@ const styles = StyleSheet.create({
   selectAll: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
   emptyText: { fontSize: 15, color: Colors.textSecondary },
+  emptySync: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 4,
+    paddingHorizontal: 16, paddingVertical: 8,
+    backgroundColor: Colors.primaryLight, borderRadius: 8,
+  },
+  emptySyncLabel: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
 });

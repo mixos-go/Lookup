@@ -1,0 +1,4 @@
+- [LookUp architecture](lookup-architecture.md) — monorepo (apps/backend + apps/mobile), pnpm workspaces, strict TS, Prisma/PG, Redis/BullMQ, NativeWind+NativeBase.
+- [Mobile API pattern](mobile-api-pattern.md) — always destructure `const { data } = await apiClient.get/post/patch()` then access `data.data`; never return raw AxiosResponse.
+- [Bulk worker duality](bulk-worker-duality.md) — two worker files exist: queues/bulk-update.worker.ts (original) and workers/bulk.worker.ts (SSE-aware); both safe but only one imported in index.ts.
+- [Backend Dockerfile pnpm](backend-dockerfile.md) — backend Dockerfile must use pnpm (not npm/npm ci) because workspace root uses pnpm; filter flag `--filter @lookup/backend` to install only backend deps.

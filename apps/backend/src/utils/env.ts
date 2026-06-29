@@ -9,10 +9,11 @@ const EnvSchema = z.object({
   JWT_REFRESH_SECRET: z.string().min(32),
   ENCRYPTION_KEY: z.string().length(64),
   CORS_ORIGIN: z.string().default('*'),
-  SHOPEE_PARTNER_ID: z.string(),
-  SHOPEE_PARTNER_KEY: z.string(),
-  TIKTOK_APP_KEY: z.string(),
-  TIKTOK_APP_SECRET: z.string(),
+  API_BASE_URL: z.string().default('http://localhost:3000'),
+  SHOPEE_PARTNER_ID: z.string().default(''),
+  SHOPEE_PARTNER_KEY: z.string().default(''),
+  TIKTOK_APP_KEY: z.string().default(''),
+  TIKTOK_APP_SECRET: z.string().default(''),
 });
 
 export const env = EnvSchema.parse(process.env);

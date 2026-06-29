@@ -3,7 +3,7 @@
 export type Platform = 'SHOPEE' | 'TIKTOK';
 export type ShopStatus = 'ACTIVE' | 'TOKEN_EXPIRED' | 'DISCONNECTED';
 export type ProductStatus = 'ACTIVE' | 'INACTIVE' | 'SOLD_OUT';
-export type BulkJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'PARTIAL';
+export type BulkJobStatusValue = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'PARTIAL';
 export type BulkJobType = 'STOCK' | 'PRICE';
 export type UpdateType = 'STOCK' | 'PRICE' | 'IMAGE';
 
@@ -108,7 +108,7 @@ export interface BulkJobError {
 
 export interface BulkJobStatus {
   jobId: string;
-  status: BulkJobStatus;
+  status: BulkJobStatusValue;
   progress: number;
   total: number;
   successCount: number;
