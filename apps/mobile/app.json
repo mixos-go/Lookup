@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "LookUp",
+    "slug": "lookup",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2563EB"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.lookup.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Digunakan untuk mengambil foto produk.",
+        "NSPhotoLibraryUsageDescription": "Digunakan untuk memilih foto produk."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2563EB"
+      },
+      "package": "com.lookup.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-image-picker",
+      [
+        "expo-image-manipulator"
+      ]
+    ],
+    "scheme": "lookup",
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    }
+  }
+}

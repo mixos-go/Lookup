@@ -1,0 +1,199 @@
+// src/screens/ProductListScreen.tsx
+import React, { useState, useCallback } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { FlashList } from '@shopify/flash-list';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useQuery } from '@tanstack/react-query';
+import { Feather } from '@expo/vector-icons';
+import { ProductCard } from '@/components/molecules/ProductCard';
+import { ShopSelector } from '@/components/organisms/ShopSelector';
+import { BulkActionBar } from '@/components/organisms/BulkActionBar';
+import { Skeleton } from '@/components/atoms/Skeleton';
+import { Colors } from '@/constants';
+import { QUERY_KEYS } from '@/constants/queryKeys';
+import { useShopStore } from '@/stores/shopStore';
+import { useBulkStore } from '@/stores/bulkStore';
+import { productsApi } from '@/api/index';
+import type { RootStackParamList, ProductSummary } from '@/types';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+type StatusFilter = 'ALL' | 'ACTIVE' | 'SOLD_OUT';
+
+const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
+  { key: 'ALL', label: 'Semua' },
+  { key: 'ACTIVE', label: 'Aktif' },
+  { key: 'SOLD_OUT', label: 'Habis' },
+];
+
+function ProductListSkeleton() {
+  return (
+    <View>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <View key={i} style={skeletonStyles.row}>
+          <Skeleton width={60} height={60} borderRadius={8} />
+          <View style={skeletonStyles.content}>
+            <Skeleton width="90%" height={16} />
+            <Skeleton width="50%" height={12} />
+            <Skeleton width="40%" height={12} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const skeletonStyles = StyleSheet.create({
+  row: { flexDirection: 'row', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  content: { flex: 1, gap: 8, justifyContent: 'center' },
+});
+
+export function ProductListScreen() {
+  const navigation = useNavigation<Nav>();
+  const { activeShopId, getActiveShop } = useShopStore();
+  const { isSelectMode, selectedProducts, enterSelectMode, toggleProduct, selectAll, isSelected } = useBulkStore();
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
+
+  const activeShop = getActiveShop();
+
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: QUERY_KEYS.products(activeShopId ?? '', { search, status: statusFilter }),
+    queryFn: () =>
+      productsApi.list({ shopId: activeShopId!, search, status: statusFilter }),
+    enabled: !!activeShopId,
+  });
+
+  const products: ProductSummary[] = data?.data?.products ?? [];
+
+  const handlePress = useCallback((product: ProductSummary) => {
+    if (isSelectMode) {
+      toggleProduct(product);
+    } else {
+      navigation.navigate('ProductDetail', {
+        productId: product.id,
+        shopId: activeShopId!,
+        productName: product.name,
+      });
+    }
+  }, [isSelectMode, activeShopId]);
+
+  const handleLongPress = useCallback((product: ProductSummary) => {
+    if (!isSelectMode) enterSelectMode();
+    toggleProduct(product);
+  }, [isSelectMode]);
+
+  const renderItem = ({ item }: { item: ProductSummary }) => (
+    <ProductCard
+      product={item}
+      platform={activeShop?.platform ?? 'SHOPEE'}
+      isSelectMode={isSelectMode}
+      isSelected={isSelected(item.id)}
+      onPress={() => handlePress(item)}
+      onLongPress={() => handleLongPress(item)}
+    />
+  );
+
+  return (
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <ShopSelector />
+
+      {/* Search */}
+      <View style={styles.searchRow}>
+        <View style={styles.searchBar}>
+          <Feather name="search" size={16} color={Colors.placeholder} />
+          <TextInput
+            style={styles.searchInput}
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Cari produk atau SKU..."
+            placeholderTextColor={Colors.placeholder}
+            returnKeyType="search"
+          />
+          {!!search && (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Feather name="x" size={16} color={Colors.placeholder} />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Filter / Select banner */}
+      {isSelectMode ? (
+        <View style={styles.selectBanner}>
+          <Text style={styles.selectCount}>{selectedProducts.length} produk dipilih</Text>
+          <TouchableOpacity onPress={() => selectAll(products)}>
+            <Text style={styles.selectAll}>Pilih Semua</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={styles.filterRow}>
+          {STATUS_FILTERS.map((f) => (
+            <TouchableOpacity
+              key={f.key}
+              onPress={() => setStatusFilter(f.key)}
+              style={[styles.filterChip, statusFilter === f.key && styles.filterChipActive]}
+            >
+              <Text style={[styles.filterLabel, statusFilter === f.key && styles.filterLabelActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {isLoading ? (
+        <ProductListSkeleton />
+      ) : (
+        <FlashList
+          data={products}
+          renderItem={renderItem}
+          estimatedItemSize={85}
+          onRefresh={refetch}
+          refreshing={false}
+          keyExtractor={(item) => item.id}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Feather name="package" size={40} color={Colors.placeholder} />
+              <Text style={styles.emptyText}>Tidak ada produk ditemukan</Text>
+            </View>
+          }
+        />
+      )}
+
+      <BulkActionBar />
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: Colors.background },
+  searchRow: { paddingHorizontal: 16, paddingBottom: 8 },
+  searchBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: Colors.cardBg, borderRadius: 10,
+    borderWidth: 1, borderColor: Colors.border,
+    paddingHorizontal: 12, height: 40,
+  },
+  searchInput: { flex: 1, fontSize: 14, color: Colors.heading },
+  filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
+  filterChip: {
+    paddingHorizontal: 12, paddingVertical: 6,
+    borderRadius: 9999, borderWidth: 1, borderColor: Colors.border,
+    backgroundColor: Colors.cardBg,
+  },
+  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  filterLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
+  filterLabelActive: { color: Colors.white },
+  selectBanner: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 10,
+    backgroundColor: Colors.primaryLight,
+  },
+  selectCount: { fontSize: 14, fontWeight: '700', color: Colors.primary },
+  selectAll: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
+  emptyText: { fontSize: 15, color: Colors.textSecondary },
+});

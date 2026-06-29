@@ -1,0 +1,234 @@
+// apps/backend/prisma/schema.prisma
+// Full schema — see docs/SCHEMA.md for detailed explanation
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users ────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String
+  passwordHash  String    @map("password_hash")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  refreshTokens RefreshToken[]
+  shops         ShopConnection[]
+  bulkJobs      BulkJob[]
+  oauthStates   OAuthState[]
+
+  @@map("users")
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String    @map("user_id")
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  revokedAt DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
+}
+
+// ─── Shop Connections ─────────────────────────────────────────────────────────
+
+enum Platform {
+  SHOPEE
+  TIKTOK
+}
+
+enum ShopStatus {
+  ACTIVE
+  TOKEN_EXPIRED
+  DISCONNECTED
+}
+
+model ShopConnection {
+  id              String     @id @default(cuid())
+  userId          String     @map("user_id")
+  platform        Platform
+  platformShopId  String     @map("platform_shop_id")
+  shopName        String     @map("shop_name")
+  region          String
+  status          ShopStatus @default(ACTIVE)
+
+  // AES-256-GCM encrypted at application layer — see utils/crypto.ts
+  accessTokenEnc  String     @map("access_token_enc")
+  refreshTokenEnc String     @map("refresh_token_enc")
+  tokenExpiresAt  DateTime   @map("token_expires_at")
+
+  lastSyncAt      DateTime?  @map("last_sync_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+  disconnectedAt  DateTime?  @map("disconnected_at")
+
+  user         User           @relation(fields: [userId], references: [id])
+  updateLogs   UpdateLog[]
+  bulkJobs     BulkJob[]
+
+  @@unique([userId, platform, platformShopId])
+  @@index([userId])
+  @@index([status])
+  @@map("shop_connections")
+}
+
+// ─── Product Cache ─────────────────────────────────────────────────────────────
+
+model ProductCache {
+  id                String    @id @default(cuid())
+  shopConnectionId  String    @map("shop_connection_id")
+  platformProductId String    @map("platform_product_id")
+  name              String
+  coverImageUrl     String?   @map("cover_image_url")
+  status            String
+  totalStock        Int       @default(0) @map("total_stock")
+  minPrice          Decimal   @map("min_price") @db.Decimal(15, 2)
+  maxPrice          Decimal   @map("max_price") @db.Decimal(15, 2)
+  currency          String    @default("IDR")
+  variantCount      Int       @default(1) @map("variant_count")
+  rawData           Json      @map("raw_data")
+  platformUpdatedAt DateTime? @map("platform_updated_at")
+  cachedAt          DateTime  @default(now()) @map("cached_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([shopConnectionId, platformProductId])
+  @@index([shopConnectionId])
+  @@index([status])
+  @@index([totalStock])
+  @@map("product_cache")
+}
+
+// ─── Update Logs ──────────────────────────────────────────────────────────────
+
+enum UpdateType {
+  STOCK
+  PRICE
+  IMAGE
+  PRODUCT_INFO
+}
+
+enum UpdateStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+model UpdateLog {
+  id                String       @id @default(cuid())
+  shopConnectionId  String       @map("shop_connection_id")
+  platformProductId String       @map("platform_product_id")
+  variantId         String?      @map("variant_id")
+  updateType        UpdateType   @map("update_type")
+  status            UpdateStatus
+  previousValue     Json?        @map("previous_value")
+  newValue          Json         @map("new_value")
+  platformResponse  Json?        @map("platform_response")
+  errorMessage      String?      @map("error_message")
+  bulkJobId         String?      @map("bulk_job_id")
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  shopConnection ShopConnection @relation(fields: [shopConnectionId], references: [id])
+
+  @@index([shopConnectionId])
+  @@index([platformProductId])
+  @@index([updateType])
+  @@index([createdAt])
+  @@index([bulkJobId])
+  @@map("update_logs")
+}
+
+// ─── Bulk Jobs ────────────────────────────────────────────────────────────────
+
+enum BulkJobType {
+  STOCK
+  PRICE
+}
+
+enum BulkJobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+model BulkJob {
+  id               String        @id @default(cuid())
+  userId           String        @map("user_id")
+  shopConnectionId String        @map("shop_connection_id")
+  type             BulkJobType
+  status           BulkJobStatus @default(QUEUED)
+  totalItems       Int           @map("total_items")
+  successCount     Int           @default(0) @map("success_count")
+  failedCount      Int           @default(0) @map("failed_count")
+  progress         Int           @default(0)
+  payload          Json
+  errors           Json?
+  queueJobId       String?       @map("queue_job_id")
+  startedAt        DateTime?     @map("started_at")
+  completedAt      DateTime?     @map("completed_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  user           User           @relation(fields: [userId], references: [id])
+  shopConnection ShopConnection @relation(fields: [shopConnectionId], references: [id])
+
+  @@index([userId])
+  @@index([shopConnectionId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("bulk_jobs")
+}
+
+// ─── Webhook Events ───────────────────────────────────────────────────────────
+
+model WebhookEvent {
+  id          String    @id @default(cuid())
+  platform    Platform
+  eventType   String    @map("event_type")
+  payload     Json
+  signature   String?
+  processed   Boolean   @default(false)
+  processedAt DateTime? @map("processed_at")
+  error       String?
+  receivedAt  DateTime  @default(now()) @map("received_at")
+
+  @@index([platform])
+  @@index([processed])
+  @@index([receivedAt])
+  @@map("webhook_events")
+}
+
+// ─── OAuth State ──────────────────────────────────────────────────────────────
+
+model OAuthState {
+  id        String    @id @default(cuid())
+  state     String    @unique
+  userId    String    @map("user_id")
+  platform  Platform
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([state])
+  @@index([expiresAt])
+  @@map("oauth_states")
+}

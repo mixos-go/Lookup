@@ -1,0 +1,30 @@
+# Env files — NEVER commit
+.env
+.env.local
+.env.production
+apps/backend/.env
+apps/mobile/.env
+
+# Node
+node_modules/
+dist/
+build/
+
+# Expo
+apps/mobile/.expo/
+apps/mobile/ios/
+apps/mobile/android/
+
+# Prisma
+apps/backend/prisma/migrations/**/*.sql
+
+# Docker volumes
+docker/volumes/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/
