@@ -11,6 +11,9 @@ import { registerErrorHandler } from './middleware/errorHandler';
 import { prisma } from './database/client';
 import { redis } from './cache/redis';
 
+// Start BullMQ worker — import triggers registration (SSE-enabled version)
+import './workers/bulk.worker';
+
 const app = Fastify({ logger: false });
 
 async function bootstrap(): Promise<void> {
@@ -34,6 +37,7 @@ async function bootstrap(): Promise<void> {
 }
 
 const shutdown = async (): Promise<void> => {
+  logger.info('Shutting down...');
   await app.close();
   await prisma.$disconnect();
   await redis.quit();

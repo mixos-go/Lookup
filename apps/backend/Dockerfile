@@ -1,26 +1,40 @@
-FROM node:20-alpine AS base
-RUN npm install -g pnpm
-
-FROM base AS deps
+# ─── Stage 1: Install dependencies ───────────────────────────────────────────────
+FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/backend/package.json ./apps/backend/
-RUN pnpm install --frozen-lockfile --filter @lookup/backend
 
-FROM base AS builder
+# Copy only package files first (layer cache)
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# ─── Stage 2: Build TypeScript ────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
 WORKDIR /app
+
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/backend/node_modules ./apps/backend/node_modules
 COPY . .
-WORKDIR /app/apps/backend
-RUN pnpm exec prisma generate
-RUN pnpm build
 
-FROM base AS runner
+# Generate Prisma client
+RUN npx prisma generate
+
+# Compile TypeScript
+RUN npm run build
+
+# ─── Stage 3: Production runner ───────────────────────────────────────────────────
+FROM node:20-alpine AS runner
 WORKDIR /app
+
 ENV NODE_ENV=production
-COPY --from=builder /app/apps/backend/dist ./dist
-COPY --from=builder /app/apps/backend/node_modules ./node_modules
-COPY --from=builder /app/apps/backend/prisma ./prisma
+
+# Install only production deps
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production && npm cache clean --force
+
+# Copy compiled output + prisma schema
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+# Migrate DB then start server
+# Railway: backend includes BullMQ worker in same process (see src/index.ts)
 EXPOSE 3000
-CMD ["sh", "-c", "node node_modules/.bin/prisma migrate deploy && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]

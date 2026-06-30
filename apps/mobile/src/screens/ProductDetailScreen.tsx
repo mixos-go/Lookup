@@ -15,6 +15,7 @@ import { Badge } from '@/components/atoms/Badge';
 import { Skeleton } from '@/components/atoms/Skeleton';
 import { ErrorState } from '@/components/molecules/ErrorState';
 import { Colors } from '@/constants';
+import { useShopStore } from '@/stores/shopStore';
 import { QUERY_KEYS } from '@/constants/queryKeys';
 import { productsApi } from '@/api/index';
 import type { RootStackParamList, ProductDetail } from '@/types';
@@ -33,6 +34,8 @@ export function ProductDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
   const { productId, shopId } = route.params;
+  const { getActiveShop } = useShopStore();
+  const activeShop = getActiveShop();
 
   const { data: product, isLoading, error, refetch } = useQuery<ProductDetail>({
     queryKey: QUERY_KEYS.productDetail(productId, shopId),
@@ -91,7 +94,7 @@ export function ProductDetailScreen() {
 
         <View style={styles.infoSection}>
           <View style={styles.tagRow}>
-            <PlatformTag platform="SHOPEE" />
+            <PlatformTag platform={activeShop?.platform ?? 'SHOPEE'} />
             <Badge label={statusInfo.label} variant={statusInfo.variant} />
           </View>
           <Text style={styles.productName}>{product.name}</Text>

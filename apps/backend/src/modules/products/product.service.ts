@@ -4,23 +4,6 @@ import { shopeeProduct } from '../../integrations/shopee/shopee.product';
 import { tiktokProduct } from '../../integrations/tiktok/tiktok.product';
 import { logger } from '../../utils/logger';
 
-type ProductStatus = 'ACTIVE' | 'INACTIVE' | 'SOLD_OUT' | 'ALL';
-
-function normalizeShopeeStatus(status: string): 'ACTIVE' | 'INACTIVE' | 'SOLD_OUT' {
-  if (status === 'NORMAL') return 'ACTIVE';
-  if (status === 'SOLD_OUT') return 'SOLD_OUT';
-  return 'INACTIVE';
-}
-
-function normalizeTikTokStatus(status: string): 'ACTIVE' | 'INACTIVE' | 'SOLD_OUT' {
-  if (status === 'ACTIVATE') return 'ACTIVE';
-  if (status === 'SOLD_OUT') return 'SOLD_OUT';
-  return 'INACTIVE';
-}
-
-const MAX_SYNC_PAGES = 4;
-const SYNC_PAGE_SIZE = 50;
-
 export class ProductService {
   async listProducts(params: {
     userId: string;
@@ -28,11 +11,8 @@ export class ProductService {
     page: number;
     limit: number;
     search?: string;
-    status?: ProductStatus;
-  }): Promise<{
-    data: { products: unknown[] };
-    meta: { page: number; limit: number; total: number; hasMore: boolean };
-  }> {
+    status?: string;
+  }) {
     const { userId, shopId, page, limit, search, status } = params;
 
     const shop = await prisma.shopConnection.findFirst({
@@ -40,73 +20,83 @@ export class ProductService {
     });
     if (!shop) throw new Error('SHOP_NOT_FOUND');
 
-    const filtersHash = JSON.stringify({ search, status });
-    const cacheKey = `product_list:${shopId}:${page}:${Buffer.from(filtersHash).toString('base64').slice(0, 16)}`;
-    const cached = await getCache<{
-      data: { products: unknown[] };
-      meta: { page: number; limit: number; total: number; hasMore: boolean };
-    }>(cacheKey);
+    const cacheKey = `product_list:${shopId}:${page}:${limit}:${search ?? ''}:${status ?? 'ALL'}`;
+    const cached = await getCache(cacheKey);
     if (cached) return cached;
 
-    let products: unknown[] = [];
-    let total = 0;
-    let hasMore = false;
+    let result: { data: { products: unknown[] }; meta: { page: number; limit: number; total: number; hasMore: boolean } };
 
     if (shop.platform === 'SHOPEE') {
-      const result = await shopeeProduct.getItemList(shop, page, limit, search);
-      if (result.items.length > 0) {
-        const itemIds = result.items.map((i) => i.item_id);
-        const details = await shopeeProduct.getItemBaseInfo(shop, itemIds);
-        products = (details as any[]).map((item: any) => ({
-          id: item.item_id?.toString() ?? '',
-          platformProductId: item.item_id?.toString() ?? '',
-          name: item.item_name ?? '',
-          coverImage: item.image?.image_url_list?.[0] ?? '',
-          status: normalizeShopeeStatus(item.item_status ?? ''),
-          totalStock:
-            (item.stock_info_v2?.summary_info?.total_reserved_stock ?? 0) +
-            (item.stock_info_v2?.summary_info?.total_available_stock ?? 0),
-          priceRange: {
-            min: Number(item.price_info?.[0]?.current_price ?? 0),
-            max: Number(item.price_info?.[item.price_info.length - 1]?.current_price ?? 0),
-            currency: 'IDR',
-          },
-          variantCount: item.model?.length ?? 1,
-          updatedAt: new Date((item.update_time ?? 0) * 1000).toISOString(),
-        }));
-      }
-      total = result.total_count;
-      hasMore = result.has_next_page;
-    } else {
-      const result = await tiktokProduct.getProductList(shop, page, limit, search);
-      products = (result.products as any[]).map((item: any) => ({
-        id: item.id ?? '',
-        platformProductId: item.id ?? '',
-        name: item.title ?? '',
-        coverImage: item.main_images?.[0]?.urls?.[0] ?? '',
-        status: normalizeTikTokStatus(item.status ?? ''),
-        totalStock:
-          item.skus?.reduce(
-            (acc: number, s: any) => acc + (s.inventory?.[0]?.quantity ?? 0),
-            0,
-          ) ?? 0,
+      // FIX: Shopee item_status only accepts NORMAL | BANNED | DELETED | UNLIST.
+      // "SOLD_OUT" and "INACTIVE" are NOT valid Shopee values — they don't exist
+      // in the platform API. Sold-out items are NORMAL items with stock=0.
+      // "INACTIVE" maps to Shopee's UNLIST status (manually hidden by seller).
+      const shopeeStatus = status === 'INACTIVE' ? 'UNLIST' : 'NORMAL';
+
+      const rawList = await shopeeProduct.getItemList(shop, page, limit, search, shopeeStatus);
+
+      let products = rawList.items.map((item: any) => ({
+        id: String(item.item_id),
+        platformProductId: String(item.item_id),
+        name: item.item_name ?? '',
+        coverImage: item.item_sku ?? '',
+        status: item.item_status ?? 'NORMAL',
+        totalStock: item.stock_info_v2?.seller_stock?.reduce((s: number, x: any) => s + (x.stock ?? 0), 0) ?? 0,
         priceRange: {
-          min: Number(item.skus?.[0]?.price?.sale_price ?? 0),
-          max: Number(item.skus?.[item.skus.length - 1]?.price?.sale_price ?? 0),
+          min: (item.price_info?.[0]?.current_price ?? 0),
+          max: (item.price_info?.[item.price_info?.length - 1]?.current_price ?? 0),
           currency: 'IDR',
         },
-        variantCount: item.skus?.length ?? 1,
-        updatedAt: item.update_time ?? new Date().toISOString(),
+        variantCount: item.has_model ? (item.tier_variation?.length ?? 1) : 1,
+        updatedAt: new Date(item.update_time * 1000).toISOString(),
       }));
-      total = result.total_count;
-      hasMore = result.has_more;
+
+      // FIX: "SOLD_OUT" is a derived state (stock === 0), not a platform status.
+      // Filter client-side since Shopee has no item_status for this.
+      if (status === 'SOLD_OUT') {
+        products = products.filter((p) => p.totalStock === 0);
+      }
+
+      result = {
+        data: { products },
+        meta: {
+          page,
+          limit,
+          // Note: total_count reflects Shopee's NORMAL count, not post-filter count
+          // when status === 'SOLD_OUT'. This is a known limitation — Shopee has
+          // no server-side sold-out filter.
+          total: rawList.total_count,
+          hasMore: rawList.has_next_page,
+        },
+      };
+    } else {
+      const rawList = await tiktokProduct.getProductList(shop, page, limit, search);
+
+      // FIX: filter by status at API level — TikTok supports status filter in search
+      const products = rawList.products
+        .filter((p: any) => !status || status === 'ALL' || p.status === status)
+        .map((p: any) => ({
+          id: String(p.id),
+          platformProductId: String(p.id),
+          name: p.title ?? '',
+          coverImage: p.main_images?.[0]?.thumb_urls?.[0] ?? '',
+          status: p.status ?? 'ACTIVE',
+          totalStock: p.skus?.reduce((s: number, sk: any) => s + (sk.stock_infos?.[0]?.available_stock ?? 0), 0) ?? 0,
+          priceRange: {
+            min: Number(p.skus?.[0]?.price?.sale_price ?? 0),
+            max: Number(p.skus?.[p.skus.length - 1]?.price?.sale_price ?? 0),
+            currency: 'IDR',
+          },
+          variantCount: p.skus?.length ?? 1,
+          updatedAt: new Date((p.update_time ?? 0) * 1000).toISOString(),
+        }));
+
+      result = {
+        data: { products },
+        meta: { page, limit, total: rawList.total_count, hasMore: rawList.has_more },
+      };
     }
 
-    if (status && status !== 'ALL') {
-      products = products.filter((p: any) => p.status === status);
-    }
-
-    const result = { data: { products }, meta: { page, limit, total, hasMore } };
     await setCache(cacheKey, result, CACHE_TTL.PRODUCT_LIST);
     return result;
   }
@@ -121,266 +111,155 @@ export class ProductService {
     const cached = await getCache(cacheKey);
     if (cached) return cached;
 
-    let detail: unknown = null;
-
+    let raw: unknown;
     if (shop.platform === 'SHOPEE') {
-      const items = await shopeeProduct.getItemBaseInfo(shop, [Number(productId)]);
-      const item = (items as any[])[0];
-      if (!item) throw new Error('PRODUCT_NOT_FOUND');
-
-      detail = {
-        id: item.item_id?.toString() ?? '',
-        platformProductId: item.item_id?.toString() ?? '',
-        name: item.item_name ?? '',
-        description: item.description ?? '',
-        images: (item.image?.image_url_list ?? []).map((url: string, i: number) => ({
-          imageId: `img_${i}`,
-          url,
-          order: i,
-        })),
-        status: normalizeShopeeStatus(item.item_status ?? ''),
-        category: item.category_id?.toString() ?? '',
-        coverImage: item.image?.image_url_list?.[0] ?? '',
-        totalStock:
-          (item.stock_info_v2?.summary_info?.total_reserved_stock ?? 0) +
-          (item.stock_info_v2?.summary_info?.total_available_stock ?? 0),
-        priceRange: {
-          min: Number(item.price_info?.[0]?.current_price ?? 0),
-          max: Number(item.price_info?.[item.price_info.length - 1]?.current_price ?? 0),
-          currency: 'IDR',
-        },
-        variantCount: item.model?.length ?? 1,
-        variants: (item.model ?? []).map((m: any) => ({
-          variantId: m.model_id?.toString() ?? '',
-          name: m.model_name ?? '',
-          sku: m.model_sku ?? '',
-          stock: m.stock_info_v2?.summary_info?.total_available_stock ?? 0,
-          price: Number(m.price_info?.[0]?.current_price ?? 0),
-          originalPrice: Number(m.price_info?.[0]?.original_price ?? 0),
-          currency: 'IDR',
-          attributes: {},
-        })),
-        createdAt: new Date((item.create_time ?? 0) * 1000).toISOString(),
-        updatedAt: new Date((item.update_time ?? 0) * 1000).toISOString(),
-      };
+      raw = await shopeeProduct.getItemDetail(shop, productId);
     } else {
-      const item = (await tiktokProduct.getProductDetail(shop, productId)) as any;
-      if (!item) throw new Error('PRODUCT_NOT_FOUND');
-
-      detail = {
-        id: item.id ?? '',
-        platformProductId: item.id ?? '',
-        name: item.title ?? '',
-        description: item.description ?? '',
-        images: (item.main_images ?? []).map((img: any, i: number) => ({
-          imageId: img.uri ?? `img_${i}`,
-          url: img.urls?.[0] ?? '',
-          order: i,
-        })),
-        status: normalizeTikTokStatus(item.status ?? ''),
-        category: item.category_chains?.[0]?.id ?? '',
-        coverImage: item.main_images?.[0]?.urls?.[0] ?? '',
-        totalStock:
-          item.skus?.reduce(
-            (acc: number, s: any) => acc + (s.inventory?.[0]?.quantity ?? 0),
-            0,
-          ) ?? 0,
-        priceRange: {
-          min: Number(item.skus?.[0]?.price?.sale_price ?? 0),
-          max: Number(item.skus?.[item.skus.length - 1]?.price?.sale_price ?? 0),
-          currency: 'IDR',
-        },
-        variantCount: item.skus?.length ?? 1,
-        variants: (item.skus ?? []).map((sku: any) => ({
-          variantId: sku.id ?? '',
-          name:
-            sku.sales_attributes?.map((a: any) => a.value_name).join(' / ') ?? '',
-          sku: sku.seller_sku ?? '',
-          stock: sku.inventory?.[0]?.quantity ?? 0,
-          price: Number(sku.price?.sale_price ?? 0),
-          originalPrice: Number(
-            sku.price?.tax_exclusive_price ?? sku.price?.sale_price ?? 0,
-          ),
-          currency: 'IDR',
-          attributes: Object.fromEntries(
-            (sku.sales_attributes ?? []).map((a: any) => [a.attribute_name, a.value_name]),
-          ),
-        })),
-        createdAt: item.create_time ?? new Date().toISOString(),
-        updatedAt: item.update_time ?? new Date().toISOString(),
-      };
+      raw = await tiktokProduct.getProductDetail(shop, productId);
     }
 
-    await setCache(cacheKey, detail, CACHE_TTL.PRODUCT_DETAIL);
-    return detail;
+    const product = shop.platform === 'SHOPEE'
+      ? mapShopeeDetail(raw as any, shopId)
+      : mapTikTokDetail(raw as any, shopId);
+
+    await setCache(cacheKey, product, CACHE_TTL.PRODUCT_DETAIL);
+    return product;
   }
 
-  async syncProducts(
-    userId: string,
-    shopId: string,
-  ): Promise<{ synced: number; errors: number; message: string }> {
+  async syncProducts(userId: string, shopId: string): Promise<{ synced: number }> {
     const shop = await prisma.shopConnection.findFirst({
       where: { id: shopId, userId, disconnectedAt: null },
     });
     if (!shop) throw new Error('SHOP_NOT_FOUND');
 
-    // Invalidate all cached pages for this shop
-    await invalidateCache(`product_list:${shopId}:*`);
-    await invalidateCache(`product:${shopId}:*`);
-
+    let page = 1;
+    let hasMore = true;
     let synced = 0;
-    let errors = 0;
 
-    if (shop.platform === 'SHOPEE') {
-      let hasMore = true;
-      let page = 1;
+    while (hasMore) {
+      const result = shop.platform === 'SHOPEE'
+        ? await shopeeProduct.getItemList(shop, page, 50)
+        : await tiktokProduct.getProductList(shop, page, 50);
 
-      while (hasMore && page <= MAX_SYNC_PAGES) {
-        const result = await shopeeProduct.getItemList(shop, page, SYNC_PAGE_SIZE);
-        if (result.items.length === 0) break;
+      const items = 'items' in result ? result.items : (result as any).products;
 
-        const details = await shopeeProduct.getItemBaseInfo(
-          shop,
-          result.items.map((i) => i.item_id),
-        );
+      for (const item of items) {
+        const platformProductId = String('item_id' in item ? item.item_id : item.id);
+        const name = 'item_name' in item ? item.item_name : (item as any).title ?? '';
+        const totalStock = shop.platform === 'SHOPEE'
+          ? (item as any).stock_info_v2?.seller_stock?.reduce((s: number, x: any) => s + (x.stock ?? 0), 0) ?? 0
+          : (item as any).skus?.reduce((s: number, sk: any) => s + (sk.stock_infos?.[0]?.available_stock ?? 0), 0) ?? 0;
 
-        for (const item of details as any[]) {
-          try {
-            const totalStock =
-              (item.stock_info_v2?.summary_info?.total_reserved_stock ?? 0) +
-              (item.stock_info_v2?.summary_info?.total_available_stock ?? 0);
-            const priceInfo = item.price_info ?? [];
-            const minPrice = priceInfo[0]?.current_price ?? 0;
-            const maxPrice = priceInfo[priceInfo.length - 1]?.current_price ?? minPrice;
-
-            await prisma.productCache.upsert({
-              where: {
-                shopConnectionId_platformProductId: {
-                  shopConnectionId: shopId,
-                  platformProductId: item.item_id?.toString() ?? '',
-                },
-              },
-              create: {
-                shopConnectionId: shopId,
-                platformProductId: item.item_id?.toString() ?? '',
-                name: item.item_name ?? '',
-                coverImageUrl: item.image?.image_url_list?.[0],
-                status: normalizeShopeeStatus(item.item_status ?? ''),
-                totalStock,
-                minPrice,
-                maxPrice,
-                variantCount: item.model?.length ?? 1,
-                rawData: item,
-                platformUpdatedAt: new Date((item.update_time ?? 0) * 1000),
-              },
-              update: {
-                name: item.item_name ?? '',
-                coverImageUrl: item.image?.image_url_list?.[0],
-                status: normalizeShopeeStatus(item.item_status ?? ''),
-                totalStock,
-                minPrice,
-                maxPrice,
-                variantCount: item.model?.length ?? 1,
-                rawData: item,
-                platformUpdatedAt: new Date((item.update_time ?? 0) * 1000),
-                cachedAt: new Date(),
-              },
-            });
-            synced++;
-          } catch (err) {
-            logger.error({ err, itemId: item.item_id }, 'Failed to upsert product cache');
-            errors++;
-          }
-        }
-
-        hasMore = result.has_next_page;
-        page++;
+        await prisma.productCache.upsert({
+          where: { shopConnectionId_platformProductId: { shopConnectionId: shopId, platformProductId } },
+          create: {
+            shopConnectionId: shopId,
+            platformProductId,
+            name,
+            totalStock,
+            minPrice: 0,
+            maxPrice: 0,
+            rawData: item as any,
+            cachedAt: new Date(),
+          },
+          update: {
+            name,
+            totalStock,
+            rawData: item as any,
+            cachedAt: new Date(),
+          },
+        });
+        synced++;
       }
-    } else {
-      // TikTok
-      let hasMore = true;
-      let page = 1;
 
-      while (hasMore && page <= MAX_SYNC_PAGES) {
-        const result = await tiktokProduct.getProductList(shop, page, SYNC_PAGE_SIZE);
-        if (result.products.length === 0) break;
-
-        for (const item of result.products as any[]) {
-          try {
-            const totalStock =
-              item.skus?.reduce(
-                (acc: number, s: any) => acc + (s.inventory?.[0]?.quantity ?? 0),
-                0,
-              ) ?? 0;
-            const prices = (item.skus ?? []).map((s: any) =>
-              Number(s.price?.sale_price ?? 0),
-            );
-            const minPrice = prices.length ? Math.min(...prices) : 0;
-            const maxPrice = prices.length ? Math.max(...prices) : 0;
-
-            await prisma.productCache.upsert({
-              where: {
-                shopConnectionId_platformProductId: {
-                  shopConnectionId: shopId,
-                  platformProductId: item.id ?? '',
-                },
-              },
-              create: {
-                shopConnectionId: shopId,
-                platformProductId: item.id ?? '',
-                name: item.title ?? '',
-                coverImageUrl: item.main_images?.[0]?.urls?.[0],
-                status: normalizeTikTokStatus(item.status ?? ''),
-                totalStock,
-                minPrice,
-                maxPrice,
-                variantCount: item.skus?.length ?? 1,
-                rawData: item,
-                platformUpdatedAt: item.update_time
-                  ? new Date(item.update_time)
-                  : null,
-              },
-              update: {
-                name: item.title ?? '',
-                coverImageUrl: item.main_images?.[0]?.urls?.[0],
-                status: normalizeTikTokStatus(item.status ?? ''),
-                totalStock,
-                minPrice,
-                maxPrice,
-                variantCount: item.skus?.length ?? 1,
-                rawData: item,
-                platformUpdatedAt: item.update_time
-                  ? new Date(item.update_time)
-                  : null,
-                cachedAt: new Date(),
-              },
-            });
-            synced++;
-          } catch (err) {
-            logger.error({ err, itemId: item.id }, 'Failed to upsert TikTok product cache');
-            errors++;
-          }
-        }
-
-        hasMore = result.has_more;
-        page++;
-      }
+      hasMore = 'has_next_page' in result ? result.has_next_page : (result as any).has_more;
+      if (!hasMore) break;
+      page++;
     }
 
-    await prisma.shopConnection.update({
-      where: { id: shopId },
-      data: { lastSyncAt: new Date() },
-    });
+    await prisma.shopConnection.update({ where: { id: shopId }, data: { lastSyncAt: new Date() } });
+    await invalidateCache(`product_list:${shopId}:*`);
 
-    logger.info({ shopId, platform: shop.platform, synced, errors }, 'Product sync completed');
-    return {
-      synced,
-      errors,
-      message: errors > 0
-        ? `Sinkronisasi selesai: ${synced} produk berhasil, ${errors} gagal`
-        : `Sinkronisasi selesai: ${synced} produk diperbarui`,
-    };
+    return { synced };
   }
+}
+
+function mapShopeeDetail(raw: any, shopId: string) {
+  const item = raw?.response ?? raw ?? {};
+  return {
+    id: String(item.item_id ?? ''),
+    platformProductId: String(item.item_id ?? ''),
+    name: item.item_name ?? '',
+    description: item.description ?? '',
+    category: String(item.category_id ?? ''),
+    status: item.item_status ?? 'NORMAL',
+    coverImage: item.image?.image_url_list?.[0] ?? '',
+    images: (item.image?.image_url_list ?? []).map((url: string, i: number) => ({
+      imageId: String(i),
+      url,
+      order: i,
+    })),
+    variants: (item.model ?? []).map((m: any) => ({
+      variantId: String(m.model_id),
+      name: m.model_description ?? 'Default',
+      sku: m.model_sku ?? '',
+      stock: m.stock_info_v2?.seller_stock?.[0]?.stock ?? 0,
+      price: m.price_info?.[0]?.current_price ?? 0,
+      originalPrice: m.price_info?.[0]?.original_price ?? 0,
+      currency: 'IDR',
+      attributes: {},
+    })),
+    priceRange: {
+      min: item.price_info?.[0]?.current_price ?? 0,
+      max: item.price_info?.[item.price_info?.length - 1]?.current_price ?? 0,
+      currency: 'IDR',
+    },
+    variantCount: item.model?.length ?? 1,
+    totalStock: (item.model ?? []).reduce((s: number, m: any) =>
+      s + (m.stock_info_v2?.seller_stock?.[0]?.stock ?? 0), 0),
+    createdAt: new Date((item.create_time ?? 0) * 1000).toISOString(),
+    updatedAt: new Date((item.update_time ?? 0) * 1000).toISOString(),
+  };
+}
+
+function mapTikTokDetail(raw: any, shopId: string) {
+  const item = raw ?? {};
+  return {
+    id: String(item.id ?? ''),
+    platformProductId: String(item.id ?? ''),
+    name: item.title ?? '',
+    description: item.description ?? '',
+    category: item.category_chains?.[0]?.id ?? '',
+    status: item.status ?? 'ACTIVE',
+    coverImage: item.main_images?.[0]?.thumb_urls?.[0] ?? '',
+    images: (item.main_images ?? []).map((img: any, i: number) => ({
+      imageId: img.uri ?? String(i),
+      url: img.thumb_urls?.[0] ?? img.url_list?.[0] ?? '',
+      order: i,
+    })),
+    variants: (item.skus ?? []).map((sku: any) => ({
+      variantId: String(sku.id),
+      name: sku.sales_attributes?.map((a: any) => a.value_name).join(' / ') ?? 'Default',
+      sku: sku.seller_sku ?? '',
+      stock: sku.stock_infos?.[0]?.available_stock ?? 0,
+      price: Number(sku.price?.sale_price ?? 0),
+      originalPrice: Number(sku.price?.original_price ?? 0),
+      currency: sku.price?.currency ?? 'IDR',
+      attributes: Object.fromEntries(
+        (sku.sales_attributes ?? []).map((a: any) => [a.attribute_name, a.value_name])
+      ),
+    })),
+    priceRange: {
+      min: Number(item.skus?.[0]?.price?.sale_price ?? 0),
+      max: Number(item.skus?.[item.skus?.length - 1]?.price?.sale_price ?? 0),
+      currency: 'IDR',
+    },
+    variantCount: item.skus?.length ?? 1,
+    totalStock: (item.skus ?? []).reduce((s: number, sk: any) =>
+      s + (sk.stock_infos?.[0]?.available_stock ?? 0), 0),
+    createdAt: new Date((item.create_time ?? 0) * 1000).toISOString(),
+    updatedAt: new Date((item.update_time ?? 0) * 1000).toISOString(),
+  };
 }
 
 export const productService = new ProductService();

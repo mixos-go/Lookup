@@ -1,0 +1,30 @@
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native
+ios/
+android/
+
+# Env
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# Logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# EAS / credentials
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.jks
+*.keystore
+google-service-account.json

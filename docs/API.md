@@ -253,6 +253,15 @@ search?: string;        // search by name or SKU
 status?: "ACTIVE" | "INACTIVE" | "SOLD_OUT" | "ALL";   // default "ALL"
 ```
 
+> **Note on status filtering:** `SOLD_OUT` is a derived state computed from
+> `totalStock === 0`, not a native platform status. Neither Shopee nor TikTok
+> have a server-side "sold out" filter — Shopee's valid `item_status` values
+> are `NORMAL | BANNED | DELETED | UNLIST`, and `SOLD_OUT` items are simply
+> `NORMAL` items with zero stock. When `status=SOLD_OUT` is requested, the
+> backend fetches `NORMAL` items from Shopee and filters by stock client-side,
+> which means the `meta.total` count may not exactly match the filtered result
+> count. `INACTIVE` maps to Shopee's `UNLIST` status.
+
 **Response 200:**
 ```typescript
 {
@@ -676,13 +685,27 @@ POST /api/v2/product/update_price_info
 ## External: TikTok Shop Open API
 
 **Base URL:** `https://open-api.tiktokglobalshop.com`
-**Auth:** `x-tts-access-token: <access_token>` header
+
+**Auth (every request requires ALL of these):**
+- Header: `x-tts-access-token: <access_token>`
+- Query param: `app_key=<app_key>`
+- Query param: `shop_cipher=<shop_cipher>` — **not** `shop_id`. Obtained once via
+  `GET /seller/202309/shops` after OAuth and stored per-shop (encrypted, see
+  `shopCipherEnc` in `SCHEMA.md`). Every product/inventory/price call requires it.
+- Query param: `timestamp=<unix_seconds>`
+- Query param: `sign=<hmac_sha256>` — computed as:
+  `HMAC-SHA256(app_secret, path + sorted_query_params_concat + body)`,
+  excluding `sign` and `access_token` from the signed params.
+
+> **Common mistake:** sending `shop_id` as a header (`x-tts-shop-id`) instead
+> of `shop_cipher` as a signed query param. TikTok will reject the request
+> with an auth error — `shop_id` alone is not sufficient for v202309+.
 
 ### Key Endpoints Used
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/seller/202309/shops` | List shops |
+| GET | `/seller/202309/shops` | List shops — returns `id`, `cipher`, `name`, `region` per shop |
 | GET | `/product/202309/products` | List products |
 | GET | `/product/202309/products/{id}` | Product detail |
 | PUT | `/product/202309/products/{id}` | Update product |

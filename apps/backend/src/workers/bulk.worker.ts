@@ -1,33 +1,37 @@
-import { Worker } from 'bullmq';
+import { Worker, type Job } from 'bullmq';
 import { redis } from '../cache/redis';
 import { prisma } from '../database/client';
-import { shopeeProduct } from '../integrations/shopee/shopee.product';
-import { tiktokProduct } from '../integrations/tiktok/tiktok.product';
+import { inventoryService } from '../modules/inventory/inventory.service';
+import { priceService } from '../modules/price/price.service';
 import { logger } from '../utils/logger';
 
 const BATCH_SIZE = 50;
-const BATCH_DELAY_MS = 200;
+const BATCH_DELAY_MS = 250; // Respect platform rate limits
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+interface BulkJobData {
+  jobId: string;
+  userId: string;
+  shopId: string;
+  items: Array<{
+    productId: string;
+    variantId: string;
+    stock?: number;
+    price?: number;
+    originalPrice?: number;
+  }>;
 }
 
-export const bulkWorker = new Worker(
-  'bulk-update',
-  async (job) => {
-    const { jobId, shopId, items } = job.data as {
-      jobId: string;
-      userId: string;
-      shopId: string;
-      items: Array<{
-        productId: string;
-        variantId: string;
-        stock?: number;
-        price?: number;
-        originalPrice?: number;
-      }>;
-    };
+async function publishProgress(userId: string, jobId: string, progress: number, extra = {}): Promise<void> {
+  await redis.publish(
+    `lookup:bulk:${userId}`,
+    JSON.stringify({ type: 'bulk_progress', jobId, progress, ...extra }),
+  );
+}
 
+export const bulkWorker = new Worker<BulkJobData>(
+  'bulk-update',
+  async (job: Job<BulkJobData>) => {
+    const { jobId, userId, shopId, items } = job.data;
     const isStockJob = job.name === 'process-stock';
 
     await prisma.bulkJob.update({
@@ -35,85 +39,54 @@ export const bulkWorker = new Worker(
       data: { status: 'PROCESSING', startedAt: new Date() },
     });
 
-    await redis.publish('lookup:sse:all', JSON.stringify({
-      type: 'bulk_job_started',
-      jobId,
-      jobType: isStockJob ? 'STOCK' : 'PRICE',
-    }));
-
-    const shop = await prisma.shopConnection.findFirst({ where: { id: shopId } });
-    if (!shop) throw new Error('Shop not found');
-
-    const errors: Array<{ productId: string; variantId: string; message: string }> = [];
+    const errors: Array<{ productId: string; variantId: string; errorCode: string; message: string }> = [];
     let successCount = 0;
 
-    const totalBatches = Math.ceil(items.length / BATCH_SIZE);
+    for (let i = 0; i < items.length; i += BATCH_SIZE) {
+      const batch = items.slice(i, i + BATCH_SIZE);
 
-    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
-      const batch = items.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
-
-      const byProduct = batch.reduce<Record<string, typeof batch>>((acc, item) => {
-        if (!acc[item.productId]) acc[item.productId] = [];
-        acc[item.productId].push(item);
-        return acc;
-      }, {});
-
-      for (const [productId, productItems] of Object.entries(byProduct)) {
+      for (const item of batch) {
         try {
           if (isStockJob) {
-            const updates = productItems.map((i) => ({
-              variantId: i.variantId,
-              stock: i.stock ?? 0,
-            }));
-            if (shop.platform === 'SHOPEE') {
-              await shopeeProduct.updateStock(shop, productId, updates);
-            } else {
-              await tiktokProduct.updateInventory(shop, productId, updates);
-            }
+            await inventoryService.updateStock(userId, item.productId, {
+              shopId,
+              updates: [{ variantId: item.variantId, stock: item.stock! }],
+            });
           } else {
-            const updates = productItems.map((i) => ({
-              variantId: i.variantId,
-              price: i.price ?? 0,
-              originalPrice: i.originalPrice,
-            }));
-            if (shop.platform === 'SHOPEE') {
-              await shopeeProduct.updatePrice(shop, productId, updates);
-            } else {
-              await tiktokProduct.updatePrice(shop, productId, updates);
-            }
+            await priceService.updatePrice(userId, item.productId, {
+              shopId,
+              updates: [{ variantId: item.variantId, price: item.price!, originalPrice: item.originalPrice }],
+            });
           }
-          successCount += productItems.length;
-        } catch (err) {
-          const message = err instanceof Error ? err.message : 'Unknown error';
-          logger.warn({ productId, err }, 'Bulk update item failed');
-          productItems.forEach((i) => {
-            errors.push({ productId: i.productId, variantId: i.variantId, message });
+          successCount++;
+        } catch (err: any) {
+          errors.push({
+            productId: item.productId,
+            variantId: item.variantId,
+            errorCode: err.message?.includes('Shopee') ? 'SHOPEE_ERROR' : 'PLATFORM_ERROR',
+            message: err.message ?? 'Unknown error',
           });
         }
       }
 
-      const progress = Math.round(((batchIdx + 1) / totalBatches) * 100);
+      const progress = Math.round(((i + batch.length) / items.length) * 100);
+
       await prisma.bulkJob.update({
         where: { id: jobId },
         data: { progress, successCount, failedCount: errors.length },
       });
 
-      await redis.publish('lookup:sse:all', JSON.stringify({
-        type: 'bulk_job_progress',
-        jobId,
-        progress,
-        successCount,
-        failedCount: errors.length,
-      }));
+      // Push SSE update to client
+      await publishProgress(userId, jobId, progress, { successCount, failedCount: errors.length });
+      await job.updateProgress(progress);
 
-      if (batchIdx < totalBatches - 1) {
-        await sleep(BATCH_DELAY_MS);
+      // Delay between batches to respect platform rate limits
+      if (i + BATCH_SIZE < items.length) {
+        await new Promise((res) => setTimeout(res, BATCH_DELAY_MS));
       }
     }
 
-    const finalStatus =
-      errors.length === 0 ? 'COMPLETED' :
-      successCount === 0 ? 'FAILED' : 'PARTIAL';
+    const finalStatus = errors.length === 0 ? 'COMPLETED' : successCount > 0 ? 'PARTIAL' : 'FAILED';
 
     await prisma.bulkJob.update({
       where: { id: jobId },
@@ -122,33 +95,28 @@ export const bulkWorker = new Worker(
         progress: 100,
         successCount,
         failedCount: errors.length,
-        errors: errors.length > 0 ? errors : undefined,
+        errors,
         completedAt: new Date(),
       },
     });
 
-    await redis.publish('lookup:sse:all', JSON.stringify({
-      type: 'bulk_job_completed',
-      jobId,
-      status: finalStatus,
-      successCount,
-      failedCount: errors.length,
-    }));
+    // Final SSE push
+    await publishProgress(userId, jobId, 100, { status: finalStatus, successCount, failedCount: errors.length });
 
-    logger.info({ jobId, finalStatus, successCount, failedCount: errors.length }, 'Bulk job completed');
+    logger.info({ jobId, status: finalStatus, successCount, failedCount: errors.length }, 'Bulk job completed');
   },
   {
-    connection: redis as unknown as Parameters<typeof Worker>[2] extends { connection: infer C } ? C : never,
-    concurrency: 2,
+    connection: redis as any,
+    concurrency: 3,
+    limiter: { max: 10, duration: 1000 }, // Max 10 jobs/second
   },
 );
 
 bulkWorker.on('failed', async (job, err) => {
-  if (job) {
-    logger.error({ jobId: job.data?.jobId, err }, 'Bulk worker job failed');
-    await prisma.bulkJob.update({
-      where: { id: job.data?.jobId },
-      data: { status: 'FAILED', completedAt: new Date() },
-    }).catch(() => { /* swallow */ });
-  }
+  if (!job) return;
+  logger.error({ jobId: job.data.jobId, err }, 'Bulk job failed');
+  await prisma.bulkJob.update({
+    where: { id: job.data.jobId },
+    data: { status: 'FAILED', errors: [{ errorCode: 'WORKER_ERROR', message: err.message }] },
+  }).catch(() => {});
 });

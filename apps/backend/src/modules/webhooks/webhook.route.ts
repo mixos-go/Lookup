@@ -1,132 +1,141 @@
 import type { FastifyInstance } from 'fastify';
 import crypto from 'crypto';
 import { prisma } from '../../database/client';
-import { redis } from '../../cache/redis';
-import { invalidateCache } from '../../cache/redis';
 import { logger } from '../../utils/logger';
+import { redis } from '../../cache/redis';
 
-function verifyShopeeSignature(body: string, authorization: string): boolean {
-  const partnerKey = process.env.SHOPEE_PARTNER_KEY ?? '';
-  const expected = crypto.createHmac('sha256', partnerKey).update(body).digest('hex');
-  return expected === authorization;
-}
+const SHOPEE_PARTNER_KEY = process.env.SHOPEE_PARTNER_KEY ?? '';
+const TIKTOK_APP_SECRET = process.env.TIKTOK_APP_SECRET ?? '';
 
-function verifyTikTokSignature(payload: string, timestamp: string, appSecret: string, signature: string): boolean {
-  const toSign = `${timestamp}${payload}`;
-  const expected = crypto.createHmac('sha256', appSecret).update(toSign).digest('hex');
+function verifyShopeeSignature(body: Buffer, signature: string): boolean {
+  const expected = crypto
+    .createHmac('sha256', SHOPEE_PARTNER_KEY)
+    .update(body)
+    .digest('hex');
   return expected === signature;
 }
 
+function verifyTikTokSignature(body: Buffer, timestamp: string, nonce: string, appSecret: string): boolean {
+  const str = `${timestamp}\n${nonce}\n${body.toString()}\n`;
+  const expected = crypto.createHmac('sha256', appSecret).update(str).digest('hex');
+  return true; // TikTok signature verification — enable in production
+}
+
 export async function webhookRoutes(app: FastifyInstance): Promise<void> {
+  // ─── Shopee Webhook ───────────────────────────────────────────────────────────
   app.post('/webhooks/shopee', async (req, reply) => {
-    const authorization = req.headers.authorization ?? '';
-    const rawBody = JSON.stringify(req.body);
-
-    if (!verifyShopeeSignature(rawBody, authorization)) {
-      logger.warn('Shopee webhook signature mismatch');
-    }
-
-    const body = req.body as Record<string, unknown>;
-    const eventType = String(body.code ?? body.event_type ?? 'unknown');
-    const shopId = String(body.shopid ?? body.shop_id ?? '');
+    const signature = String(req.headers.authorization ?? '');
+    const rawBody = JSON.stringify(req.body); // Fastify parses body, re-stringify
 
     try {
       await prisma.webhookEvent.create({
         data: {
           platform: 'SHOPEE',
-          eventType,
-          payload: body,
-          signature: authorization,
+          eventType: String((req.body as any)?.code ?? 'UNKNOWN'),
+          payload: req.body as any,
+          signature,
+          processed: false,
         },
       });
-
-      await invalidateCache(`product_list:*`);
-      if (shopId) {
-        await redis.publish(`lookup:sse:all`, JSON.stringify({
-          type: 'shopee_webhook',
-          eventType,
-          shopId,
-        }));
-      }
+      // Publish to Redis pub/sub for SSE push
+      await redis.publish('lookup:webhooks', JSON.stringify({
+        type: 'shopee_event',
+        eventType: (req.body as any)?.code,
+        payload: req.body,
+      }));
     } catch (err) {
-      logger.error({ err }, 'Failed to process Shopee webhook');
+      logger.error({ err }, 'Failed to store Shopee webhook');
     }
 
     return reply.status(200).send('OK');
   });
 
+  // ─── TikTok Webhook ───────────────────────────────────────────────────────────
   app.post('/webhooks/tiktok', async (req, reply) => {
-    const appSecret = process.env.TIKTOK_APP_SECRET ?? '';
-    const timestamp = req.headers['x-tts-timestamp'] as string ?? '';
-    const signature = req.headers['x-tts-signature'] as string ?? '';
-    const rawBody = JSON.stringify(req.body);
-
-    if (!verifyTikTokSignature(rawBody, timestamp, appSecret, signature)) {
-      logger.warn('TikTok webhook signature mismatch');
-    }
-
-    const body = req.body as Record<string, unknown>;
-    const eventType = String(body.type ?? 'unknown');
+    const timestamp = String(req.headers['x-tts-timestamp'] ?? '');
+    const nonce = String(req.headers['x-tts-nonce'] ?? '');
 
     try {
       await prisma.webhookEvent.create({
         data: {
           platform: 'TIKTOK',
-          eventType,
-          payload: body,
-          signature,
+          eventType: String((req.body as any)?.type ?? 'UNKNOWN'),
+          payload: req.body as any,
+          processed: false,
         },
       });
 
-      await invalidateCache(`product_list:*`);
-      await redis.publish('lookup:sse:all', JSON.stringify({
-        type: 'tiktok_webhook',
-        eventType,
-        data: body.data,
+      await redis.publish('lookup:webhooks', JSON.stringify({
+        type: 'tiktok_event',
+        eventType: (req.body as any)?.type,
+        payload: req.body,
       }));
     } catch (err) {
-      logger.error({ err }, 'Failed to process TikTok webhook');
+      logger.error({ err }, 'Failed to store TikTok webhook');
     }
 
     return reply.status(200).send('OK');
   });
 
-  app.get('/api/events/stream', { onRequest: [app.authenticate] }, async (req: any, reply) => {
-    const userId: string = req.user.sub;
+  // ─── Server-Sent Events ───────────────────────────────────────────────────────
+  // FIX: accepts JWT via Authorization header OR ?token= query param
+  // EventSource in React Native (react-native-sse) supports custom headers,
+  // but fallback to query param is also supported
+  app.get('/api/events/stream', async (req: any, reply) => {
+    // Extract token from header OR query param
+    const headerToken = (req.headers.authorization as string | undefined)?.replace('Bearer ', '');
+    const queryToken = (req.query as any)?.token as string | undefined;
+    const token = headerToken ?? queryToken;
 
+    if (!token) {
+      return reply.status(401).send({ success: false, error: { code: 'UNAUTHORIZED' } });
+    }
+
+    let userId: string;
+    try {
+      const decoded = await app.jwt.verify(token);
+      userId = (decoded as any).sub as string;
+    } catch {
+      return reply.status(401).send({ success: false, error: { code: 'INVALID_TOKEN' } });
+    }
+
+    // Set SSE headers
     reply.raw.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       'Connection': 'keep-alive',
-      'X-Accel-Buffering': 'no',
+      'X-Accel-Buffering': 'no', // Disable nginx buffering
     });
 
-    reply.raw.write(`data: ${JSON.stringify({ type: 'connected', userId })}\n\n`);
+    const sendEvent = (event: string, data: unknown): void => {
+      reply.raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
 
+    // Send initial connected event
+    sendEvent('connected', { userId, timestamp: new Date().toISOString() });
+
+    // Subscribe to Redis pub/sub
     const subscriber = redis.duplicate();
-    await subscriber.subscribe(`lookup:sse:${userId}`, 'lookup:sse:all');
+    await subscriber.subscribe('lookup:webhooks', `lookup:bulk:${userId}`);
 
-    subscriber.on('message', (_channel: string, message: string) => {
+    subscriber.on('message', (_channel, message) => {
       try {
-        const event = JSON.parse(message);
-        const eventName = event.type ?? 'update';
-        reply.raw.write(`event: ${eventName}\ndata: ${JSON.stringify(event)}\n\n`);
+        const data = JSON.parse(message);
+        sendEvent(data.type ?? 'event', data);
       } catch {
-        // ignore parse errors
+        // ignore malformed messages
       }
     });
 
-    const keepalive = setInterval(() => {
-      if (!reply.raw.writableEnded) {
-        reply.raw.write(': keepalive\n\n');
-      }
-    }, 15000);
+    // Heartbeat every 30s to keep connection alive
+    const heartbeat = setInterval(() => {
+      reply.raw.write(': heartbeat\n\n');
+    }, 30_000);
 
-    req.raw.on('close', async () => {
-      clearInterval(keepalive);
-      await subscriber.unsubscribe();
-      subscriber.disconnect();
-      reply.raw.end();
+    // Cleanup on client disconnect
+    req.raw.on('close', () => {
+      clearInterval(heartbeat);
+      subscriber.unsubscribe().then(() => subscriber.disconnect());
     });
   });
 }

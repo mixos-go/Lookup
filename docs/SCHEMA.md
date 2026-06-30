@@ -90,6 +90,10 @@ model ShopConnection {
   accessTokenEnc   String     @map("access_token_enc")
   refreshTokenEnc  String     @map("refresh_token_enc")
   tokenExpiresAt   DateTime   @map("token_expires_at")
+  // TikTok only: shop_cipher is required on EVERY TikTok API request
+  // (separate from shop_id). Obtained from GET /seller/202309/shops
+  // after OAuth. Null for Shopee shops.
+  shopCipherEnc    String?    @map("shop_cipher_enc")
 
   lastSyncAt       DateTime?  @map("last_sync_at")
   createdAt        DateTime   @default(now()) @map("created_at")

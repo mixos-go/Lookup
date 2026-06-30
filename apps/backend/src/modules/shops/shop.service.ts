@@ -5,16 +5,12 @@ import { tiktokAuth } from '../../integrations/tiktok/tiktok.auth';
 import type { ShopConnection } from '@prisma/client';
 
 export class ShopService {
-  async listShops(userId: string): Promise<Array<{
-    id: string; platformShopId: string; shopName: string; platform: string;
-    region: string; status: string; productCount: number; connectedAt: string; lastSyncAt: string | null;
-  }>> {
+  async listShops(userId: string) {
     const shops = await prisma.shopConnection.findMany({
       where: { userId, disconnectedAt: null },
       orderBy: { createdAt: 'asc' },
     });
 
-    // Count cached products per shop in one query
     const counts = await prisma.productCache.groupBy({
       by: ['shopConnectionId'],
       where: { shopConnectionId: { in: shops.map((s) => s.id) } },
@@ -35,60 +31,40 @@ export class ShopService {
     }));
   }
 
-  async getShopeeAuthUrl(userId: string): Promise<{ url: string; state: string }> {
+  async getShopeeAuthUrl(userId: string) {
     return shopeeAuth.generateAuthUrl(userId);
   }
 
-  async getTikTokAuthUrl(userId: string): Promise<{ url: string; state: string }> {
+  async getTikTokAuthUrl(userId: string) {
     return tiktokAuth.generateAuthUrl(userId);
   }
 
-  async handleShopeeCallback(
-    userId: string,
-    code: string,
-    shopId: string,
-    state: string,
-  ): Promise<ShopConnection> {
-    return shopeeAuth.handleCallback(userId, code, shopId, state);
+  // FIX: no userId param — extracted from state in handleCallback
+  async handleShopeeCallback(code: string, shopId: string, state: string): Promise<ShopConnection> {
+    return shopeeAuth.handleCallback(code, shopId, state);
   }
 
-  async handleTikTokCallback(
-    userId: string,
-    code: string,
-    state: string,
-  ): Promise<ShopConnection> {
-    return tiktokAuth.handleCallback(userId, code, state);
+  async handleTikTokCallback(code: string, state: string): Promise<ShopConnection> {
+    return tiktokAuth.handleCallback(code, state);
   }
 
   async refreshShopeeToken(userId: string, shopId: string): Promise<void> {
     const shop = await prisma.shopConnection.findFirst({ where: { id: shopId, userId } });
     if (!shop) throw new Error('SHOP_NOT_FOUND');
-
     const { accessToken, refreshToken, expiresAt } = await shopeeAuth.refreshAccessToken(shop);
     await prisma.shopConnection.update({
       where: { id: shopId },
-      data: {
-        accessTokenEnc: encrypt(accessToken),
-        refreshTokenEnc: encrypt(refreshToken),
-        tokenExpiresAt: expiresAt,
-        status: 'ACTIVE',
-      },
+      data: { accessTokenEnc: encrypt(accessToken), refreshTokenEnc: encrypt(refreshToken), tokenExpiresAt: expiresAt, status: 'ACTIVE' },
     });
   }
 
   async refreshTikTokToken(userId: string, shopId: string): Promise<void> {
     const shop = await prisma.shopConnection.findFirst({ where: { id: shopId, userId } });
     if (!shop) throw new Error('SHOP_NOT_FOUND');
-
     const { accessToken, refreshToken, expiresAt } = await tiktokAuth.refreshAccessToken(shop);
     await prisma.shopConnection.update({
       where: { id: shopId },
-      data: {
-        accessTokenEnc: encrypt(accessToken),
-        refreshTokenEnc: encrypt(refreshToken),
-        tokenExpiresAt: expiresAt,
-        status: 'ACTIVE',
-      },
+      data: { accessTokenEnc: encrypt(accessToken), refreshTokenEnc: encrypt(refreshToken), tokenExpiresAt: expiresAt, status: 'ACTIVE' },
     });
   }
 

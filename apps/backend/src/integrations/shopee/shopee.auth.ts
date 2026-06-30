@@ -53,7 +53,6 @@ export const shopeeAuth = {
   ): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date }> {
     const { decrypt } = await import('../../utils/crypto');
     const oldRefreshToken = decrypt(shop.refreshTokenEnc);
-
     const timestamp = Math.floor(Date.now() / 1000);
     const path = '/api/v2/auth/access_token/get';
     const sign = createShopeeSign(path, timestamp);
@@ -75,7 +74,10 @@ export const shopeeAuth = {
     };
   },
 
-  async getShopInfo(accessToken: string, shopId: string): Promise<{ shopName: string; region: string }> {
+  async getShopInfo(
+    accessToken: string,
+    shopId: string,
+  ): Promise<{ shopName: string; region: string }> {
     const timestamp = Math.floor(Date.now() / 1000);
     const path = '/api/v2/shop/get_shop_info';
     const sign = createShopeeSign(path, timestamp, accessToken, shopId);
@@ -96,18 +98,21 @@ export const shopeeAuth = {
     };
   },
 
+  // FIX: no userId param — userId comes from oauthState record
   async handleCallback(
-    userId: string,
     code: string,
     shopId: string,
     state: string,
   ): Promise<import('@prisma/client').ShopConnection> {
     const oauthState = await prisma.oAuthState.findUnique({ where: { state } });
-    if (!oauthState || oauthState.userId !== userId || oauthState.expiresAt < new Date() || oauthState.usedAt) {
+    if (!oauthState || oauthState.expiresAt < new Date() || oauthState.usedAt) {
       throw new Error('INVALID_STATE');
     }
 
+    // Mark state as used immediately to prevent replay
     await prisma.oAuthState.update({ where: { id: oauthState.id }, data: { usedAt: new Date() } });
+
+    const userId = oauthState.userId; // Get userId FROM state, not from JWT
 
     const { accessToken, refreshToken, expiresAt } = await shopeeAuth.exchangeCode(code, shopId);
     const shopInfo = await shopeeAuth.getShopInfo(accessToken, shopId);

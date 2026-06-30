@@ -1,6 +1,34 @@
 import { createTikTokClient } from './tiktok.client';
 import { prisma } from '../../database/client';
+import { getCache, setCache } from '../../cache/redis';
 import type { ShopConnection } from '@prisma/client';
+
+// Cache warehouse IDs per shop (60 min TTL)
+async function getPrimaryWarehouseId(shop: ShopConnection): Promise<string> {
+  const cacheKey = `warehouse:${shop.id}`;
+  const cached = await getCache<string>(cacheKey);
+  if (cached) return cached;
+
+  const client = createTikTokClient(shop);
+  try {
+    const res = await client.get('/logistics/202309/warehouses');
+    const warehouses: Array<{ warehouse_id: string; warehouse_type: string; warehouse_name: string }> =
+      res.data?.data?.warehouse_list ?? [];
+
+    // Prefer MAIN warehouse, then first available
+    const main = warehouses.find((w) => w.warehouse_type === 'MAIN') ?? warehouses[0];
+    const warehouseId = main?.warehouse_id ?? '';
+
+    if (warehouseId) {
+      await setCache(cacheKey, warehouseId, 60 * 60); // 1h
+    }
+
+    return warehouseId;
+  } catch {
+    // Fallback if endpoint fails — some regions don't require warehouse_id
+    return '';
+  }
+}
 
 export const tiktokProduct = {
   async getProductList(shop: ShopConnection, page: number, limit: number, search?: string): Promise<{
@@ -42,11 +70,15 @@ export const tiktokProduct = {
     updates: Array<{ variantId: string; stock: number }>,
   ): Promise<{ updated: typeof updates; platform: string; updatedAt: string }> {
     const client = createTikTokClient(shop);
+    // FIX: use real warehouse_id from seller's warehouses
+    const warehouseId = await getPrimaryWarehouseId(shop);
 
     const res = await client.put('/product/202309/inventories', {
       skus: updates.map((u) => ({
         id: u.variantId,
-        inventory: [{ warehouse_id: 'default', quantity: u.stock }],
+        inventory: warehouseId
+          ? [{ warehouse_id: warehouseId, quantity: u.stock }]
+          : [{ quantity: u.stock }], // some regions don't need warehouse_id
       })),
     });
 
@@ -98,7 +130,11 @@ export const tiktokProduct = {
     return { updated: updates, updatedAt: new Date().toISOString() };
   },
 
-  async uploadImage(shop: ShopConnection, imageBuffer: Buffer, mimeType: string): Promise<{ imageId: string; imageUrl: string; width: number; height: number }> {
+  async uploadImage(
+    shop: ShopConnection,
+    imageBuffer: Buffer,
+    mimeType: string,
+  ): Promise<{ imageId: string; imageUrl: string; width: number; height: number }> {
     const client = createTikTokClient(shop);
     const FormData = (await import('form-data')).default;
     const form = new FormData();
@@ -116,5 +152,17 @@ export const tiktokProduct = {
       width: img?.width ?? 0,
       height: img?.height ?? 0,
     };
+  },
+
+  async updateProductImages(
+    shop: ShopConnection,
+    productId: string,
+    imageUris: string[],
+  ): Promise<void> {
+    const client = createTikTokClient(shop);
+    // TikTok: reorder/update main images via full product update
+    await client.put(`/product/202309/products/${productId}`, {
+      main_images: imageUris.map((uri) => ({ uri })),
+    });
   },
 };
