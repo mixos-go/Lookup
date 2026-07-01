@@ -46,13 +46,13 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/YOUR_EAS_PROJECT_ID"
+      "url": "https://u.expo.dev/2df9b979-b018-49ab-bebf-c6672ca639dd"
     },
     "extra": {
       "eas": {
-        "projectId": "YOUR_EAS_PROJECT_ID"
+        "projectId": "2df9b979-b018-49ab-bebf-c6672ca639dd"
       }
     },
-    "owner": "YOUR_EXPO_ACCOUNT_USERNAME"
+    "owner": "mixosgo"
   }
 }
