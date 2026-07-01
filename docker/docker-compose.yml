@@ -36,6 +36,7 @@ services:
     build:
       context: ../apps/backend
       dockerfile: Dockerfile
+      target: deps
     container_name: lookup_backend
     ports:
       - "3000:3000"
@@ -53,7 +54,7 @@ services:
     volumes:
       - ../apps/backend:/app
       - /app/node_modules
-    command: npm run dev
+    command: sh -c "npx prisma generate && npm run dev"
 
   nginx:
     image: nginx:alpine

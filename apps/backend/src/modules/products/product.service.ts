@@ -149,6 +149,9 @@ export class ProductService {
         const totalStock = shop.platform === 'SHOPEE'
           ? (item as any).stock_info_v2?.seller_stock?.reduce((s: number, x: any) => s + (x.stock ?? 0), 0) ?? 0
           : (item as any).skus?.reduce((s: number, sk: any) => s + (sk.stock_infos?.[0]?.available_stock ?? 0), 0) ?? 0;
+        const status = shop.platform === 'SHOPEE'
+          ? (item as any).item_status ?? 'NORMAL'
+          : (item as any).status ?? 'ACTIVE';
 
         await prisma.productCache.upsert({
           where: { shopConnectionId_platformProductId: { shopConnectionId: shopId, platformProductId } },
@@ -156,6 +159,7 @@ export class ProductService {
             shopConnectionId: shopId,
             platformProductId,
             name,
+            status,
             totalStock,
             minPrice: 0,
             maxPrice: 0,
@@ -164,6 +168,7 @@ export class ProductService {
           },
           update: {
             name,
+            status,
             totalStock,
             rawData: item as any,
             cachedAt: new Date(),
