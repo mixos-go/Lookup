@@ -40,8 +40,7 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-image-picker",
-      ["expo-image-manipulator"]
+      "expo-image-picker"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
