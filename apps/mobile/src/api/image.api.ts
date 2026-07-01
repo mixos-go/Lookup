@@ -1,5 +1,4 @@
-import { apiClient } from './client';
-import { getAccessToken } from './client';
+import { apiClient, getAccessToken } from './client';
 import { API_URL } from '@/constants';
 
 export interface UploadedImage {

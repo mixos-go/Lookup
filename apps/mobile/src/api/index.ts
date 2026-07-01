@@ -1,7 +1,8 @@
-// src/api/products.ts
+// src/api/index.ts — Product, Inventory, Price, and Bulk API calls
 import { apiClient } from './client';
-import type { ProductSummary, ProductDetail } from '@/types';
+import type { ProductDetail, BulkStockItem, BulkPriceItem } from '@/types';
 
+// ─── Products ───────────────────────────────────────────────────────────────
 interface ListProductsParams {
   shopId: string;
   page?: number;
@@ -22,10 +23,11 @@ export const productsApi = {
   },
 };
 
-// src/api/inventory.ts
-import { apiClient } from './client';
-
-interface StockUpdate { variantId: string; stock: number }
+// ─── Inventory (Stock) ────────────────────────────────────────────────────────
+interface StockUpdate {
+  variantId: string;
+  stock: number;
+}
 
 export const inventoryApi = {
   updateStock: async (productId: string, shopId: string, updates: StockUpdate[]) => {
@@ -34,10 +36,12 @@ export const inventoryApi = {
   },
 };
 
-// src/api/price.ts
-import { apiClient } from './client';
-
-interface PriceUpdate { variantId: string; price: number; originalPrice?: number }
+// ─── Price ────────────────────────────────────────────────────────────────────
+interface PriceUpdate {
+  variantId: string;
+  price: number;
+  originalPrice?: number;
+}
 
 export const priceApi = {
   updatePrice: async (productId: string, shopId: string, updates: PriceUpdate[]) => {
@@ -46,10 +50,7 @@ export const priceApi = {
   },
 };
 
-// src/api/bulk.ts
-import { apiClient } from './client';
-import type { BulkStockItem, BulkPriceItem } from '@/types';
-
+// ─── Bulk Operations ────────────────────────────────────────────────────────────
 export const bulkApi = {
   createStockJob: async (shopId: string, items: BulkStockItem[]) => {
     const { data } = await apiClient.post('/api/bulk/stock', { shopId, items });
