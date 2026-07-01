@@ -8,7 +8,7 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://studious-fiesta-pj45vq4w9xrw2965x-3000.app.github.dev/"
+        "EXPO_PUBLIC_API_URL": "http://localhost:3000"
       },
       "ios": { "resourceClass": "m-medium" },
       "android": { "buildType": "apk" }
@@ -16,7 +16,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://lookup-staging.up.railway.app"
+        "EXPO_PUBLIC_API_URL": "https://studious-fiesta-pj45vq4w9xrw2965x-3000.app.github.dev/"
       },
       "ios": { "resourceClass": "m-medium" },
       "android": { "buildType": "apk" },

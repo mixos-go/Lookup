@@ -3,7 +3,7 @@ import { logger } from '../utils/logger';
 
 export const redis = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379', {
   lazyConnect: true,
-  maxRetriesPerRequest: 3,
+  maxRetriesPerRequest: null,
 });
 
 redis.on('connect', () => logger.info('Redis connected'));
