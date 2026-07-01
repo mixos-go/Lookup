@@ -7,11 +7,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "scheme": "lookup",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#2563EB"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -41,10 +36,18 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-secure-store",
-      "expo-image-picker",
-      "expo-font"
-    ],
+  [
+    "expo-splash-screen",
+    {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2563EB"
+    }
+  ],
+  "expo-secure-store",
+  "expo-image-picker",
+  "expo-font"
+  ],
     "runtimeVersion": {
       "policy": "appVersion"
     },

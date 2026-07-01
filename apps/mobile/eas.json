@@ -16,7 +16,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://studious-fiesta-pj45vq4w9xrw2965x-3000.app.github.dev/"
+        "EXPO_PUBLIC_API_URL": "https://lookup-api.up.railway.app"
       },
       "ios": { "resourceClass": "m-medium" },
       "android": { "buildType": "apk" },
