@@ -1,3 +1,15 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Web-only: react-native-web merender root app di dalam <body>/<div id="root">.
+   Reset ini menghilangkan margin default browser & memastikan tinggi penuh,
+   supaya WebResponsiveShell bisa center konten dengan benar. Tidak berefek
+   apa pun di build native (iOS/Android). */
+html, body, #root {
+  height: 100%;
+}
+body {
+  margin: 0;
+}
+

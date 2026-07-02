@@ -1,7 +1,7 @@
 // src/hooks/useTheme.tsx
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useColorScheme } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '@/utils/secureStorage';
 import { Colors, DarkColors, type ThemeColors } from '@/constants/colors';
 
 type ThemeMode = 'light' | 'dark' | 'system';

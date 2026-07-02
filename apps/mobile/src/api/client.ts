@@ -1,7 +1,7 @@
 // src/api/client.ts — Base Axios instance with JWT auth + auto-refresh
 
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '@/utils/secureStorage';
 import { API_URL } from '@/constants';
 
 const REFRESH_TOKEN_KEY = 'lookup_refresh_token';
