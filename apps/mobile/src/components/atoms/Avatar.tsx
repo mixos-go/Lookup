@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 type AvatarSize = 'sm' | 'md' | 'lg';
 
@@ -14,6 +14,7 @@ interface AvatarProps {
 }
 
 export function Avatar({ uri, name = '', size = 'md' }: AvatarProps) {
+  const { colors } = useTheme();
   const diameter = SIZE[size];
   const initials = name.trim().slice(0, 2).toUpperCase() || '?';
   const fontSize = diameter * 0.35;
@@ -22,21 +23,21 @@ export function Avatar({ uri, name = '', size = 'md' }: AvatarProps) {
     return (
       <Image
         source={{ uri }}
-        style={[styles.image, { width: diameter, height: diameter, borderRadius: diameter / 2 }]}
+        style={[styles.image, { width: diameter, height: diameter, borderRadius: diameter / 2, backgroundColor: colors.border }]}
         contentFit="cover"
       />
     );
   }
 
   return (
-    <View style={[styles.fallback, { width: diameter, height: diameter, borderRadius: diameter / 2 }]}>
-      <Text style={[styles.initials, { fontSize }]}>{initials}</Text>
+    <View style={[styles.fallback, { width: diameter, height: diameter, borderRadius: diameter / 2, backgroundColor: colors.primary }]}>
+      <Text style={[styles.initials, { fontSize, color: colors.white }]}>{initials}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  image: { backgroundColor: Colors.border },
-  fallback: { backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  initials: { color: Colors.white, fontWeight: '700' },
+  image: {},
+  fallback: { alignItems: 'center', justifyContent: 'center' },
+  initials: { fontWeight: '700' },
 });

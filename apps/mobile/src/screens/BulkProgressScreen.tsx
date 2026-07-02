@@ -9,7 +9,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
 import { ProgressBar } from '@/components/molecules/ProgressBar';
 import { Badge } from '@/components/atoms/Badge';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { QUERY_KEYS } from '@/constants/queryKeys';
 import { useBulkStore } from '@/stores/bulkStore';
 import { bulkApi } from '@/api/index';
@@ -40,6 +40,7 @@ const DONE_STATUSES = ['COMPLETED', 'PARTIAL', 'FAILED'];
 export function BulkProgressScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const { colors } = useTheme();
   const { jobId, type } = route.params;
   const queryClient = useQueryClient();
   const setActiveJobId = useBulkStore((s) => s.setActiveJobId);
@@ -72,10 +73,10 @@ export function BulkProgressScreen() {
   const typeLabel = type === 'STOCK' ? 'Update Stok' : 'Update Harga';
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         {/* Icon */}
-        <View style={[styles.iconBox, isDone && status === 'COMPLETED' ? styles.iconSuccess : styles.iconPrimary]}>
+        <View style={[styles.iconBox, { backgroundColor: isDone && status === 'COMPLETED' ? colors.success : colors.primary }]}>
           <Feather
             name={
               status === 'COMPLETED' ? 'check' :
@@ -84,19 +85,19 @@ export function BulkProgressScreen() {
               'loader'
             }
             size={40}
-            color={Colors.white}
+            color={colors.white}
           />
         </View>
 
-        <Text style={styles.title}>{typeLabel}</Text>
+        <Text style={[styles.title, { color: colors.heading }]}>{typeLabel}</Text>
         <Badge label={STATUS_LABEL[status] ?? status} variant={STATUS_VARIANT[status] ?? 'neutral'} />
 
         {/* Progress */}
         <View style={styles.progressSection}>
           <ProgressBar progress={job?.progress ?? 0} failed={status === 'FAILED'} />
           <View style={styles.progressStats}>
-            <Text style={styles.progressText}>{job?.progress ?? 0}% selesai</Text>
-            <Text style={styles.progressText}>
+            <Text style={[styles.progressText, { color: colors.textSecondary }]}>{job?.progress ?? 0}% selesai</Text>
+            <Text style={[styles.progressText, { color: colors.textSecondary }]}>
               {job?.successCount ?? 0}/{job?.total ?? 0} berhasil
             </Text>
           </View>
@@ -104,9 +105,9 @@ export function BulkProgressScreen() {
 
         {/* Error Summary */}
         {(job?.failedCount ?? 0) > 0 && (
-          <View style={styles.errorBox}>
-            <Feather name="alert-circle" size={16} color={Colors.danger} />
-            <Text style={styles.errorText}>{job?.failedCount} item gagal diupdate</Text>
+          <View style={[styles.errorBox, { backgroundColor: colors.dangerLight }]}>
+            <Feather name="alert-circle" size={16} color={colors.danger} />
+            <Text style={[styles.errorText, { color: colors.danger }]}>{job?.failedCount} item gagal diupdate</Text>
           </View>
         )}
 
@@ -114,16 +115,16 @@ export function BulkProgressScreen() {
         {isDone && (
           <View style={styles.doneActions}>
             <TouchableOpacity
-              style={styles.doneBtn}
+              style={[styles.doneBtn, { backgroundColor: colors.primary }]}
               onPress={() => navigation.navigate('MainTabs')}
             >
-              <Text style={styles.doneBtnLabel}>Kembali ke Beranda</Text>
+              <Text style={[styles.doneBtnLabel, { color: colors.white }]}>Kembali ke Beranda</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {!isDone && (
-          <Text style={styles.waitHint}>
+          <Text style={[styles.waitHint, { color: colors.textSecondary }]}>
             Jangan tutup aplikasi. Proses berjalan di background.
           </Text>
         )}
@@ -133,7 +134,7 @@ export function BulkProgressScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1 },
   container: {
     flex: 1,
     alignItems: 'center',
@@ -146,24 +147,20 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
     marginBottom: 8,
   },
-  iconPrimary: { backgroundColor: Colors.primary },
-  iconSuccess: { backgroundColor: Colors.success },
-  title: { fontSize: 22, fontWeight: '800', color: Colors.heading },
+  title: { fontSize: 22, fontWeight: '800' },
   progressSection: { width: '100%', gap: 8 },
   progressStats: { flexDirection: 'row', justifyContent: 'space-between' },
-  progressText: { fontSize: 13, color: Colors.textSecondary },
+  progressText: { fontSize: 13 },
   errorBox: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.dangerLight,
     borderRadius: 10, padding: 12, width: '100%',
   },
-  errorText: { fontSize: 13, color: Colors.danger },
+  errorText: { fontSize: 13 },
   doneActions: { width: '100%' },
   doneBtn: {
-    backgroundColor: Colors.primary,
     borderRadius: 12, height: 50,
     alignItems: 'center', justifyContent: 'center',
   },
-  doneBtnLabel: { fontSize: 15, fontWeight: '700', color: Colors.white },
-  waitHint: { fontSize: 13, color: Colors.textSecondary, textAlign: 'center' },
+  doneBtnLabel: { fontSize: 15, fontWeight: '700' },
+  waitHint: { fontSize: 13, textAlign: 'center' },
 });

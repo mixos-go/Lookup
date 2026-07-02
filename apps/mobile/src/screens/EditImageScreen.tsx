@@ -12,7 +12,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Button } from '@/components/atoms/Button';
 import { Skeleton } from '@/components/atoms/Skeleton';
 import { ErrorState } from '@/components/molecules/ErrorState';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { QUERY_KEYS } from '@/constants/queryKeys';
 import { productsApi } from '@/api/index';
 import { imageApi } from '@/api/image.api';
@@ -24,6 +24,7 @@ type Route = RouteProp<RootStackParamList, 'EditImage'>;
 export function EditImageScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const { colors } = useTheme();
   const { productId, shopId } = route.params;
   const queryClient = useQueryClient();
   const [images, setImages] = useState<ProductImage[]>([]);
@@ -99,7 +100,7 @@ export function EditImageScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
         <View style={styles.skeletonGrid}>
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} width={104} height={104} borderRadius={10} />
@@ -111,16 +112,16 @@ export function EditImageScreen() {
 
   if (error || !product) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
         <ErrorState message="Gagal memuat data produk." onRetry={refetch} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.hint}>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>
           Gambar pertama akan jadi cover produk. Maks. 9 gambar.
         </Text>
 
@@ -129,31 +130,31 @@ export function EditImageScreen() {
             <View key={img.imageId} style={styles.imageWrapper}>
               <Image source={{ uri: img.url }} style={styles.image} contentFit="cover" />
               {idx === 0 && (
-                <View style={styles.coverBadge}>
-                  <Text style={styles.coverText}>Cover</Text>
+                <View style={[styles.coverBadge, { backgroundColor: colors.primary }]}>
+                  <Text style={[styles.coverText, { color: colors.white }]}>Cover</Text>
                 </View>
               )}
               <TouchableOpacity
-                style={styles.removeBtn}
+                style={[styles.removeBtn, { backgroundColor: colors.danger }]}
                 onPress={() => handleRemove(img.imageId)}
               >
-                <Feather name="x" size={12} color={Colors.white} />
+                <Feather name="x" size={12} color={colors.white} />
               </TouchableOpacity>
             </View>
           ))}
 
           {images.length < 9 && (
             <TouchableOpacity
-              style={styles.addImageBtn}
+              style={[styles.addImageBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
               onPress={handlePickImage}
               disabled={uploading}
             >
               {uploading ? (
-                <Feather name="loader" size={24} color={Colors.placeholder} />
+                <Feather name="loader" size={24} color={colors.placeholder} />
               ) : (
                 <>
-                  <Feather name="plus" size={24} color={Colors.placeholder} />
-                  <Text style={styles.addImageLabel}>Tambah</Text>
+                  <Feather name="plus" size={24} color={colors.placeholder} />
+                  <Text style={[styles.addImageLabel, { color: colors.placeholder }]}>Tambah</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -161,7 +162,7 @@ export function EditImageScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { backgroundColor: colors.cardBg, borderTopColor: colors.border }]}>
         <Button
           label={saveMutation.isPending ? 'Menyimpan...' : 'Simpan Urutan Gambar'}
           onPress={() => saveMutation.mutate()}
@@ -175,36 +176,32 @@ export function EditImageScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1 },
   content: { padding: 16, gap: 16 },
-  hint: { fontSize: 13, color: Colors.textSecondary },
+  hint: { fontSize: 13 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   imageWrapper: { width: 104, height: 104, position: 'relative' },
   image: { width: '100%', height: '100%', borderRadius: 10 },
   coverBadge: {
     position: 'absolute', bottom: 4, left: 4,
-    backgroundColor: Colors.primary,
     paddingHorizontal: 6, paddingVertical: 2,
     borderRadius: 4,
   },
-  coverText: { fontSize: 10, fontWeight: '700', color: Colors.white },
+  coverText: { fontSize: 10, fontWeight: '700' },
   removeBtn: {
     position: 'absolute', top: 4, right: 4,
     width: 20, height: 20, borderRadius: 10,
-    backgroundColor: Colors.danger,
     alignItems: 'center', justifyContent: 'center',
   },
   addImageBtn: {
     width: 104, height: 104, borderRadius: 10,
-    backgroundColor: Colors.inputBg,
-    borderWidth: 1.5, borderColor: Colors.border, borderStyle: 'dashed',
+    borderWidth: 1.5, borderStyle: 'dashed',
     alignItems: 'center', justifyContent: 'center', gap: 4,
   },
-  addImageLabel: { fontSize: 12, color: Colors.placeholder },
+  addImageLabel: { fontSize: 12 },
   skeletonGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 16 },
   footer: {
     padding: 16, paddingBottom: 28,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    borderTopWidth: 1,
   },
 });

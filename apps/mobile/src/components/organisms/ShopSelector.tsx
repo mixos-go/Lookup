@@ -1,23 +1,28 @@
 // src/components/organisms/ShopSelector.tsx
 import React from 'react';
 import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-native';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { useShopStore } from '@/stores/shopStore';
 import type { Shop } from '@/types';
 
 function ShopChip({ shop, isActive, onPress }: { shop: Shop; isActive: boolean; onPress: () => void }) {
+  const { colors } = useTheme();
   const isShopee = shop.platform === 'SHOPEE';
-  const platformColor = isShopee ? Colors.shopee : Colors.tiktokPink;
+  const platformColor = isShopee ? colors.shopee : colors.tiktokPink;
 
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      style={[styles.chip, isActive && styles.chipActive]}
+      style={[
+        styles.chip,
+        { backgroundColor: colors.cardBg, borderColor: colors.border },
+        isActive && { backgroundColor: colors.primary, borderColor: colors.primary },
+      ]}
     >
-      <View style={[styles.dot, { backgroundColor: isActive ? Colors.white : platformColor }]} />
+      <View style={[styles.dot, { backgroundColor: isActive ? colors.white : platformColor }]} />
       <Text
-        style={[styles.chipLabel, isActive && styles.chipLabelActive]}
+        style={[styles.chipLabel, { color: colors.textPrimary }, isActive && { color: colors.white }]}
         numberOfLines={1}
       >
         {shop.shopName}
@@ -58,12 +63,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 9999,
-    backgroundColor: Colors.cardBg,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  chipLabel: { fontSize: 13, fontWeight: '600', color: Colors.textPrimary, maxWidth: 120 },
-  chipLabelActive: { color: Colors.white },
+  chipLabel: { fontSize: 13, fontWeight: '600', maxWidth: 120 },
 });

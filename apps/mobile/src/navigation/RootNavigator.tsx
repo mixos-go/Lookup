@@ -1,10 +1,10 @@
 // src/navigation/RootNavigator.tsx
 import React, { useEffect } from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme, type Theme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '@/stores/authStore';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 
 // Auth screens
 import { LoginScreen } from '@/screens/LoginScreen';
@@ -20,12 +20,14 @@ import { ConnectShopScreen } from '@/screens/ConnectShopScreen';
 import { BulkStockUpdateScreen } from '@/screens/BulkStockUpdateScreen';
 import { BulkPriceUpdateScreen } from '@/screens/BulkPriceUpdateScreen';
 import { BulkProgressScreen } from '@/screens/BulkProgressScreen';
+import { ProfileScreen } from '@/screens/ProfileScreen';
 import type { RootStackParamList } from '@/types';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
   const { isAuthenticated, isInitialized, initialize } = useAuthStore();
+  const { colors, scheme } = useTheme();
 
   useEffect(() => {
     initialize();
@@ -33,14 +35,26 @@ export function RootNavigator() {
 
   if (!isInitialized) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
+  const navTheme: Theme = {
+    ...(scheme === 'dark' ? DarkTheme : DefaultTheme),
+    colors: {
+      ...(scheme === 'dark' ? DarkTheme.colors : DefaultTheme.colors),
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.cardBg,
+      text: colors.textPrimary,
+      border: colors.border,
+    },
+  };
+
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={navTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <>
@@ -62,6 +76,11 @@ export function RootNavigator() {
             <Stack.Screen name="BulkStockUpdate" component={BulkStockUpdateScreen} options={{ presentation: 'modal', headerShown: true, title: 'Update Stok Massal' }} />
             <Stack.Screen name="BulkPriceUpdate" component={BulkPriceUpdateScreen} options={{ presentation: 'modal', headerShown: true, title: 'Update Harga Massal' }} />
             <Stack.Screen name="BulkProgress" component={BulkProgressScreen} options={{ presentation: 'modal', headerShown: false, gestureEnabled: false }} />
+            <Stack.Screen
+              name="Profile"
+              component={ProfileScreen}
+              options={{ headerShown: true, title: 'Profil', headerBackTitle: '' }}
+            />
           </>
         )}
       </Stack.Navigator>

@@ -8,15 +8,16 @@ import { useQuery } from '@tanstack/react-query';
 import { JobStatusCard } from '@/components/molecules/JobStatusCard';
 import { EmptyState } from '@/components/molecules/EmptyState';
 import { Skeleton } from '@/components/atoms/Skeleton';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { QUERY_KEYS } from '@/constants/queryKeys';
 import { useShopStore } from '@/stores/shopStore';
 import { bulkApi } from '@/api/index';
 import type { BulkJobSummary } from '@/types';
 
 function SkeletonJobCard() {
+  const { colors } = useTheme();
   return (
-    <View style={styles.skeletonCard}>
+    <View style={[styles.skeletonCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
       <View style={styles.skeletonRow}>
         <Skeleton width={100} height={16} />
         <Skeleton width={70} height={22} borderRadius={9999} />
@@ -31,6 +32,7 @@ function SkeletonJobCard() {
 }
 
 export function ActivityScreen() {
+  const { colors } = useTheme();
   const { activeShopId } = useShopStore();
 
   const { data, isLoading, refetch, isRefetching } = useQuery<BulkJobSummary[]>({
@@ -42,9 +44,9 @@ export function ActivityScreen() {
   const jobs = data ?? [];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Riwayat Aktivitas</Text>
+        <Text style={[styles.title, { color: colors.heading }]}>Riwayat Aktivitas</Text>
       </View>
 
       {isLoading ? (
@@ -71,7 +73,7 @@ export function ActivityScreen() {
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={refetch}
-              tintColor={Colors.primary}
+              tintColor={colors.primary}
             />
           }
         />
@@ -81,14 +83,14 @@ export function ActivityScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1 },
   header: { paddingHorizontal: 16, paddingVertical: 14 },
-  title: { fontSize: 22, fontWeight: '800', color: Colors.heading },
+  title: { fontSize: 22, fontWeight: '800' },
   list: { padding: 16, paddingTop: 0 },
   skeletonContainer: { padding: 16, gap: 10 },
   skeletonCard: {
-    backgroundColor: Colors.cardBg, borderRadius: 12,
-    padding: 14, gap: 10, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 12,
+    padding: 14, gap: 10, borderWidth: 1,
   },
   skeletonRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
 });

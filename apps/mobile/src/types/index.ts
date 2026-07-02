@@ -162,6 +162,7 @@ export type RootStackParamList = {
   BulkStockUpdate: undefined;
   BulkPriceUpdate: undefined;
   BulkProgress: { jobId: string; type: BulkJobType };
+  Profile: undefined;
 };
 
 export type MainTabParamList = {

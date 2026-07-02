@@ -1,13 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/hooks/useTheme';
 import type { Platform } from '@/types';
 
 export function PlatformTag({ platform }: { platform: Platform }) {
+  const { colors } = useTheme();
   const isShopee = platform === 'SHOPEE';
   return (
-    <View style={[styles.container, { backgroundColor: isShopee ? Colors.shopeeLight : Colors.tiktokLight }]}>
-      <Text style={[styles.text, { color: isShopee ? Colors.shopee : Colors.tiktokPink }]}>
+    <View style={[styles.container, { backgroundColor: isShopee ? colors.shopeeLight : colors.tiktokLight }]}>
+      <Text style={[styles.text, { color: isShopee ? colors.shopee : colors.tiktokPink }]}>
         {isShopee ? 'Shopee' : 'TikTok'}
       </Text>
     </View>

@@ -37,6 +37,25 @@ All colors are defined in `src/constants/colors.ts` and referenced via NativeWin
 - TikTok Pink: `#FE2C55`
 - TikTok Light: `#FFF0F3`
 
+### Dark Mode Palette
+
+Defined in `src/constants/colors.ts` as a parallel `dark` export, toggled via `useColorScheme()`. Semantic colors (`Success`/`Warning`/`Danger`/`Info`) and platform brand colors stay the same in both modes — only neutrals and primary tints change, so a `StockIndicator` or `PlatformTag` never needs a dark-mode branch.
+
+**Neutral Scale (Dark)**
+- `#0B0F17` — screen background
+- `#1A1F2B` — card backgrounds, input backgrounds
+- `#2A3040` — dividers, borders
+- `#6B7280` — placeholder text, disabled state (unchanged)
+- `#9CA3AF` — secondary text
+- `#E5E7EB` — primary text
+- `#F9FAFB` — headings
+
+**Primary Tints (Dark)**
+- Primary: `#3B82F6` (Blue 500 — one step lighter than light-mode Primary, for contrast against dark backgrounds)
+- Primary Light: `#1E3A8A` at 24% opacity — chip/badge backgrounds
+
+Rule: any component that currently reads a hardcoded hex from the light neutral scale must instead read the themed token (e.g. `colors.background`, `colors.cardBackground`) so it resolves correctly in both modes. No component should branch on `useColorScheme()` directly for anything other than selecting which palette object to read from.
+
 ### Typography
 
 All font sizes in `src/constants/typography.ts`.
@@ -92,6 +111,9 @@ The app has two root stacks managed by `navigation/RootNavigator.tsx`:
   - `EditStockScreen`
   - `EditPriceScreen`
   - `EditImageScreen`
+- Pushed screens (header shown, not modal)
+  - `ProductDetailScreen`
+  - `ProfileScreen` — only entry point is the avatar button in `HomeScreen`'s header; not a bottom tab (low-frequency action, keeps tab bar at 4 items)
 
 ### Stack Inside Bottom Tab "Products"
 
@@ -264,6 +286,8 @@ File: `BulkActionBar.tsx`
 
 Floating bar that animates up from the bottom when products are selected in bulk mode. Sits above the tab bar. Contains: count label on left ("12 dipilih"), three action buttons: "Stok", "Harga", "Batal". Uses absolute positioning with `bottom: tabBarHeight + 8`.
 
+Deliberately not a FAB (or stack of FABs). Primary bulk actions live inline in this bar so they read as part of the navigation surface rather than floating disconnected buttons that can cover list content — keep it this way even under future redesigns.
+
 ### ShopSelector
 
 File: `ShopSelector.tsx`
@@ -327,11 +351,35 @@ File: `screens/HomeScreen.tsx`
 
 Greeting section: "Halo, [user name] 👋" in large bold text. Today's date below in gray.
 
-Quick stats row: Three small cards in a horizontal row showing total connected shops, total products across all shops, total low stock items. Each card has a number in large bold text and a label below.
+Quick stats tiles: A bento-style grid, not three equal cards, rendered by the `SummaryCard` organism. Layout: one large priority tile on the left showing "Token Kedaluwarsa" count in `2xl` bold — this is the most actionable number (a seller needs to reconnect that shop), so it gets the largest visual weight. Two smaller stacked tiles on the right: "Toko Aktif" on top, "Total Produk" below. The priority tile's background auto-switches to `warningLight` when its count is greater than 0, so the eye is drawn there first without reading any label.
+
+Do not extend this bento pattern to `ProductListScreen` or `VariantTable` — those stay as linear lists/tables. Bento tiles are reserved for dashboard summaries where tile size should signal priority; tabular/sequential data loses scannability when forced into tiles.
 
 "Toko Anda" section header with "Lihat Semua" link. Below it, a vertical list of SummaryCard components, one per connected shop. If no shops connected, show empty state with "Hubungkan Toko" button.
 
 "Aktivitas Terbaru" section showing last 5 update logs as small timeline items with icon, description, and time ago text.
+
+---
+
+### ProfileScreen
+
+File: `screens/ProfileScreen.tsx`
+
+**Presentation:** Pushed screen with navigation header ("Profil" + back button) — not a modal, not a tab. Only reachable via the avatar button in `HomeScreen`'s header.
+
+**Layout:** ScrollView, no sticky footer.
+
+**Visual structure:**
+
+Account summary: centered Avatar (`lg`), user's name in bold below it, email in gray below that.
+
+"Info Akun" section: card with two rows (Nama, Email) — read-only, icon + label + value. No edit action; there is no update-profile endpoint yet.
+
+"Tampilan" section: three-way segmented control (Terang / Gelap / Sistem) that calls `useTheme().setMode()`. Active option gets a `primaryLight` background tint.
+
+"Keluar" button in `danger` variant, full width. Tapping shows a confirm alert ("Batal" / "Keluar" destructive). Confirming: best-effort revokes the refresh token server-side, clears the React Query cache, resets shop store, then clears local auth state — in that order, so the UI can't show stale data for whoever logs in next.
+
+Footer: small gray app version text.
 
 ---
 
@@ -554,7 +602,26 @@ All screens must be wrapped in `SafeAreaView` from `react-native-safe-area-conte
 All screens with inputs must use `KeyboardAvoidingView` with `behavior="padding"` on iOS and `behavior="height"` on Android.
 
 ### Bottom Sheet
-Use `@gorhom/bottom-sheet` for all bottom sheets (shop actions, quick fill, image options). Always set `backdropComponent` for dimmed overlay.
+Use `@gorhom/bottom-sheet` for all bottom sheets (shop actions, quick fill, image options). Always set `backdropComponent` for dimmed overlay. Prefer a bottom sheet over pushing a new full-screen modal for anything that doesn't need its own navigation header — settings, confirmations, quick-fill inputs, and option menus all qualify.
+
+### Bento Tiles (Dashboard Only)
+Reserve variable-size tile grids for `HomeScreen`-style summaries where tile size should communicate priority (see Quick Stats Tiles above). Never use this pattern for:
+- `ProductListScreen` — stays a linear FlashList
+- `VariantTable` — stays a table
+- Any screen where reading order matters (forms, step flows)
+
+Rule of thumb: if the content has a natural sequence or is inherently tabular, it belongs in a list/table, not a tile grid.
+
+### Motion & Microinteractions
+Motion exists to give feedback, not to decorate. Keep every animation under ~250ms and tie it to a state change the user caused:
+- Save success → brief checkmark scale-in on the button (not a full-screen animation)
+- Stock/price value increments via long-press → no animation, just the number updating (speed matters more than delight here)
+- Bulk job reaching 100% → the circular progress indicator on `BulkProgressScreen` fills and settles; no confetti or celebratory overlays
+
+Avoid animating more than one property per interaction (e.g. don't scale AND fade AND slide the same element).
+
+### Dark Mode Toggle
+Read the active palette via a single `useTheme()` hook (`src/hooks/useTheme.tsx`) that returns the light or dark token object based on `useColorScheme()`, with a manual override (`light` / `dark` / `system`) persisted via `expo-secure-store` — reuses the same dependency already used for auth tokens rather than adding `@react-native-async-storage/async-storage` just for this. The toggle lives in `ProfileScreen` under "Tampilan". No screen-level component should call `useColorScheme()` directly.
 
 ### Loading States
 Every screen that fetches data must show a skeleton layout (not a spinner) on initial load. The skeleton matches the visual structure of the loaded state.
@@ -592,4 +659,4 @@ Every screen that fetches data must show a skeleton layout (not a spinner) on in
 
 ---
 
-*Last updated: 2026-06-29 | See AGENT.md for update conventions.*
+*Last updated: 2026-07-01 | See AGENT.md for update conventions.*

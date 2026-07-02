@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 export function StockIndicator({ stock }: { stock: number }) {
+  const { colors } = useTheme();
   const isOut = stock === 0;
   const isLow = stock > 0 && stock <= 10;
-  const bg = isOut ? Colors.dangerLight : isLow ? Colors.warningLight : Colors.successLight;
-  const color = isOut ? Colors.danger : isLow ? Colors.warning : Colors.success;
+  const bg = isOut ? colors.dangerLight : isLow ? colors.warningLight : colors.successLight;
+  const color = isOut ? colors.danger : isLow ? colors.warning : colors.success;
   const label = isOut ? 'Habis' : String(stock);
 
   return (

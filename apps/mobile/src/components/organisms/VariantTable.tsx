@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { VariantRow } from '@/components/molecules/VariantRow';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 
 export interface VariantItem {
   variantId: string;
@@ -21,13 +21,14 @@ interface VariantTableProps {
 }
 
 export function VariantTable({ variants, currency, onVariantPress }: VariantTableProps) {
+  const { colors } = useTheme();
   const totalStock = variants.reduce((sum, v) => sum + v.stock, 0);
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Varian ({variants.length})</Text>
-        <Text style={styles.totalStock}>Total Stok: {totalStock}</Text>
+    <View style={[styles.container, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
+        <Text style={[styles.headerTitle, { color: colors.heading }]}>Varian ({variants.length})</Text>
+        <Text style={[styles.totalStock, { color: colors.textSecondary }]}>Total Stok: {totalStock}</Text>
       </View>
 
       {variants.map((v) => (
@@ -46,11 +47,9 @@ export function VariantTable({ variants, currency, onVariantPress }: VariantTabl
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.cardBg,
     borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   header: {
     flexDirection: 'row',
@@ -59,8 +58,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
-  headerTitle: { fontSize: 14, fontWeight: '700', color: Colors.heading },
-  totalStock: { fontSize: 13, color: Colors.textSecondary },
+  headerTitle: { fontSize: 14, fontWeight: '700' },
+  totalStock: { fontSize: 13 },
 });

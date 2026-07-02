@@ -34,3 +34,24 @@ export const Colors = {
 } as const;
 
 export type ColorKey = keyof typeof Colors;
+export type ThemeColors = Record<ColorKey, string>;
+
+// Dark variant — see docs/UI_DESIGN.md "Dark Mode Palette".
+// Semantic and platform colors are intentionally identical to the light
+// palette: StockIndicator, PlatformTag, and Badge never need a dark-mode
+// branch. Only neutrals and the primary tint change.
+export const DarkColors: ThemeColors = {
+  ...Colors,
+
+  primary: '#3B82F6',
+  primaryLight: 'rgba(30, 58, 138, 0.24)',
+
+  background: '#0B0F17',
+  cardBg: '#1A1F2B',
+  inputBg: '#1A1F2B',
+  border: '#2A3040',
+  placeholder: '#6B7280',
+  textSecondary: '#9CA3AF',
+  textPrimary: '#E5E7EB',
+  heading: '#F9FAFB',
+};

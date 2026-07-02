@@ -10,7 +10,7 @@ import { StockInput } from '@/components/molecules/StockInput';
 import { Button } from '@/components/atoms/Button';
 import { Skeleton } from '@/components/atoms/Skeleton';
 import { ErrorState } from '@/components/molecules/ErrorState';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { QUERY_KEYS } from '@/constants/queryKeys';
 import { productsApi, inventoryApi } from '@/api/index';
 import type { RootStackParamList, ProductDetail, ProductVariant } from '@/types';
@@ -25,6 +25,7 @@ interface StockState {
 export function EditStockScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const { colors } = useTheme();
   const { productId, shopId } = route.params;
   const queryClient = useQueryClient();
   const [stockState, setStockState] = useState<StockState>({});
@@ -64,7 +65,7 @@ export function EditStockScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
         <View style={styles.skeletonContainer}>
           {Array.from({ length: 3 }).map((_, i) => (
             <View key={i} style={styles.skeletonItem}>
@@ -79,7 +80,7 @@ export function EditStockScreen() {
 
   if (error || !product) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
         <ErrorState message="Gagal memuat data produk." onRetry={refetch} />
       </SafeAreaView>
     );
@@ -89,16 +90,16 @@ export function EditStockScreen() {
   const hasChanges = variants.some((v: ProductVariant) => stockState[v.variantId] !== v.stock);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-        <Text style={styles.hint}>Ubah jumlah stok untuk setiap varian.</Text>
+        <Text style={[styles.productName, { color: colors.heading }]} numberOfLines={2}>{product.name}</Text>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>Ubah jumlah stok untuk setiap varian.</Text>
 
         <View style={styles.variantList}>
           {variants.map((v: ProductVariant) => (
-            <View key={v.variantId} style={styles.variantItem}>
-              <Text style={styles.variantName}>{v.name}</Text>
-              {v.sku ? <Text style={styles.sku}>SKU: {v.sku}</Text> : null}
+            <View key={v.variantId} style={[styles.variantItem, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+              <Text style={[styles.variantName, { color: colors.textPrimary }]}>{v.name}</Text>
+              {v.sku ? <Text style={[styles.sku, { color: colors.placeholder }]}>SKU: {v.sku}</Text> : null}
               <StockInput
                 value={stockState[v.variantId] ?? v.stock}
                 onChange={(newStock) =>
@@ -106,7 +107,7 @@ export function EditStockScreen() {
                 }
               />
               {stockState[v.variantId] !== v.stock && (
-                <Text style={styles.changedHint}>
+                <Text style={[styles.changedHint, { color: colors.primary }]}>
                   {v.stock} → {stockState[v.variantId]}
                 </Text>
               )}
@@ -115,7 +116,7 @@ export function EditStockScreen() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { backgroundColor: colors.cardBg, borderTopColor: colors.border }]}>
         <Button
           label={saveMutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
           onPress={() => saveMutation.mutate()}
@@ -129,23 +130,22 @@ export function EditStockScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1 },
   content: { padding: 16, gap: 16 },
-  productName: { fontSize: 16, fontWeight: '700', color: Colors.heading },
-  hint: { fontSize: 13, color: Colors.textSecondary },
+  productName: { fontSize: 16, fontWeight: '700' },
+  hint: { fontSize: 13 },
   variantList: { gap: 16 },
   variantItem: {
-    backgroundColor: Colors.cardBg, borderRadius: 12, padding: 14,
-    gap: 8, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 12, padding: 14,
+    gap: 8, borderWidth: 1,
   },
-  variantName: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
-  sku: { fontSize: 12, color: Colors.placeholder },
-  changedHint: { fontSize: 12, color: Colors.primary, fontWeight: '600' },
+  variantName: { fontSize: 14, fontWeight: '600' },
+  sku: { fontSize: 12 },
+  changedHint: { fontSize: 12, fontWeight: '600' },
   skeletonContainer: { padding: 16, gap: 16 },
   skeletonItem: { gap: 8 },
   footer: {
     padding: 16, paddingBottom: 28,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    borderTopWidth: 1,
   },
 });

@@ -12,7 +12,7 @@ import { ProductCard } from '@/components/molecules/ProductCard';
 import { ShopSelector } from '@/components/organisms/ShopSelector';
 import { BulkActionBar } from '@/components/organisms/BulkActionBar';
 import { Skeleton } from '@/components/atoms/Skeleton';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { QUERY_KEYS } from '@/constants/queryKeys';
 import { useShopStore } from '@/stores/shopStore';
 import { useBulkStore } from '@/stores/bulkStore';
@@ -30,10 +30,11 @@ const STATUS_FILTERS: { key: StatusFilter; label: string }[] = [
 ];
 
 function ProductListSkeleton() {
+  const { colors } = useTheme();
   return (
     <View>
       {Array.from({ length: 6 }).map((_, i) => (
-        <View key={i} style={skeletonStyles.row}>
+        <View key={i} style={[skeletonStyles.row, { borderBottomColor: colors.border }]}>
           <Skeleton width={60} height={60} borderRadius={8} />
           <View style={skeletonStyles.content}>
             <Skeleton width="90%" height={16} />
@@ -47,12 +48,13 @@ function ProductListSkeleton() {
 }
 
 const skeletonStyles = StyleSheet.create({
-  row: { flexDirection: 'row', padding: 16, gap: 12, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  row: { flexDirection: 'row', padding: 16, gap: 12, borderBottomWidth: 1 },
   content: { flex: 1, gap: 8, justifyContent: 'center' },
 });
 
 export function ProductListScreen() {
   const navigation = useNavigation<Nav>();
+  const { colors } = useTheme();
   const { activeShopId, getActiveShop } = useShopStore();
   const { isSelectMode, selectedProducts, enterSelectMode, toggleProduct, selectAll, isSelected } =
     useBulkStore();
@@ -117,41 +119,41 @@ export function ProductListScreen() {
   const isSyncing = syncMutation.isPending;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Shop Selector + Sync Button */}
       <View style={styles.topBar}>
         <View style={styles.shopSelectorWrap}>
           <ShopSelector />
         </View>
         <TouchableOpacity
-          style={[styles.syncBtn, isSyncing && styles.syncBtnDisabled]}
+          style={[styles.syncBtn, { backgroundColor: colors.primaryLight }, isSyncing && styles.syncBtnDisabled]}
           onPress={handleSync}
           disabled={isSyncing || !activeShopId}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           {isSyncing ? (
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={colors.primary} />
           ) : (
-            <Feather name="refresh-cw" size={18} color={Colors.primary} />
+            <Feather name="refresh-cw" size={18} color={colors.primary} />
           )}
         </TouchableOpacity>
       </View>
 
       {/* Search */}
       <View style={styles.searchRow}>
-        <View style={styles.searchBar}>
-          <Feather name="search" size={16} color={Colors.placeholder} />
+        <View style={[styles.searchBar, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <Feather name="search" size={16} color={colors.placeholder} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.heading }]}
             value={search}
             onChangeText={setSearch}
             placeholder="Cari produk atau SKU..."
-            placeholderTextColor={Colors.placeholder}
+            placeholderTextColor={colors.placeholder}
             returnKeyType="search"
           />
           {!!search && (
             <TouchableOpacity onPress={() => setSearch('')}>
-              <Feather name="x" size={16} color={Colors.placeholder} />
+              <Feather name="x" size={16} color={colors.placeholder} />
             </TouchableOpacity>
           )}
         </View>
@@ -159,35 +161,42 @@ export function ProductListScreen() {
 
       {/* Filter / Select banner */}
       {isSelectMode ? (
-        <View style={styles.selectBanner}>
-          <Text style={styles.selectCount}>{selectedProducts.length} produk dipilih</Text>
+        <View style={[styles.selectBanner, { backgroundColor: colors.primaryLight }]}>
+          <Text style={[styles.selectCount, { color: colors.primary }]}>{selectedProducts.length} produk dipilih</Text>
           <TouchableOpacity onPress={() => selectAll(products)}>
-            <Text style={styles.selectAll}>Pilih Semua</Text>
+            <Text style={[styles.selectAll, { color: colors.primary }]}>Pilih Semua</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={styles.filterRow}>
-          {STATUS_FILTERS.map((f) => (
-            <TouchableOpacity
-              key={f.key}
-              onPress={() => setStatusFilter(f.key)}
-              style={[styles.filterChip, statusFilter === f.key && styles.filterChipActive]}
-            >
-              <Text
-                style={[styles.filterLabel, statusFilter === f.key && styles.filterLabelActive]}
+          {STATUS_FILTERS.map((f) => {
+            const active = statusFilter === f.key;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                onPress={() => setStatusFilter(f.key)}
+                style={[
+                  styles.filterChip,
+                  { backgroundColor: colors.cardBg, borderColor: colors.border },
+                  active && { backgroundColor: colors.primary, borderColor: colors.primary },
+                ]}
               >
-                {f.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[styles.filterLabel, { color: colors.textSecondary }, active && { color: colors.white }]}
+                >
+                  {f.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       )}
 
       {/* Sync in-progress banner */}
       {isSyncing && (
-        <View style={styles.syncBanner}>
-          <ActivityIndicator size="small" color={Colors.info} />
-          <Text style={styles.syncBannerText}>Menyinkronkan produk dari marketplace...</Text>
+        <View style={[styles.syncBanner, { backgroundColor: colors.infoLight }]}>
+          <ActivityIndicator size="small" color={colors.info} />
+          <Text style={[styles.syncBannerText, { color: colors.info }]}>Menyinkronkan produk dari marketplace...</Text>
         </View>
       )}
 
@@ -203,12 +212,12 @@ export function ProductListScreen() {
           keyExtractor={(item) => item.id}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Feather name="package" size={40} color={Colors.placeholder} />
-              <Text style={styles.emptyText}>Tidak ada produk ditemukan</Text>
+              <Feather name="package" size={40} color={colors.placeholder} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Tidak ada produk ditemukan</Text>
               {!!activeShopId && (
-                <TouchableOpacity style={styles.emptySync} onPress={handleSync}>
-                  <Feather name="refresh-cw" size={14} color={Colors.primary} />
-                  <Text style={styles.emptySyncLabel}>Sinkronkan dari marketplace</Text>
+                <TouchableOpacity style={[styles.emptySync, { backgroundColor: colors.primaryLight }]} onPress={handleSync}>
+                  <Feather name="refresh-cw" size={14} color={colors.primary} />
+                  <Text style={[styles.emptySyncLabel, { color: colors.primary }]}>Sinkronkan dari marketplace</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -222,7 +231,7 @@ export function ProductListScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1 },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -232,7 +241,6 @@ const styles = StyleSheet.create({
   syncBtn: {
     width: 36, height: 36,
     borderRadius: 10,
-    backgroundColor: Colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -243,40 +251,35 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: Colors.infoLight,
   },
-  syncBannerText: { fontSize: 13, color: Colors.info, flex: 1 },
+  syncBannerText: { fontSize: 13, flex: 1 },
   searchRow: { paddingHorizontal: 16, paddingBottom: 8 },
   searchBar: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.cardBg, borderRadius: 10,
-    borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 10,
+    borderWidth: 1,
     paddingHorizontal: 12, height: 40,
   },
-  searchInput: { flex: 1, fontSize: 14, color: Colors.heading },
+  searchInput: { flex: 1, fontSize: 14 },
   filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingBottom: 8 },
   filterChip: {
     paddingHorizontal: 12, paddingVertical: 6,
-    borderRadius: 9999, borderWidth: 1, borderColor: Colors.border,
-    backgroundColor: Colors.cardBg,
+    borderRadius: 9999, borderWidth: 1,
   },
-  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterLabel: { fontSize: 13, fontWeight: '600', color: Colors.textSecondary },
-  filterLabelActive: { color: Colors.white },
+  filterLabel: { fontSize: 13, fontWeight: '600' },
   selectBanner: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 16, paddingVertical: 10,
-    backgroundColor: Colors.primaryLight,
   },
-  selectCount: { fontSize: 14, fontWeight: '700', color: Colors.primary },
-  selectAll: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  selectCount: { fontSize: 14, fontWeight: '700' },
+  selectAll: { fontSize: 14, fontWeight: '600' },
   empty: { alignItems: 'center', paddingTop: 80, gap: 12 },
-  emptyText: { fontSize: 15, color: Colors.textSecondary },
+  emptyText: { fontSize: 15 },
   emptySync: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     marginTop: 4,
     paddingHorizontal: 16, paddingVertical: 8,
-    backgroundColor: Colors.primaryLight, borderRadius: 8,
+    borderRadius: 8,
   },
-  emptySyncLabel: { fontSize: 14, color: Colors.primary, fontWeight: '600' },
+  emptySyncLabel: { fontSize: 14, fontWeight: '600' },
 });

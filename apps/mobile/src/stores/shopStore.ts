@@ -8,6 +8,7 @@ interface ShopState {
   setShops: (shops: Shop[]) => void;
   setActiveShop: (shopId: string) => void;
   getActiveShop: () => Shop | null;
+  reset: () => void;
 }
 
 export const useShopStore = create<ShopState>((set, get) => ({
@@ -24,4 +25,6 @@ export const useShopStore = create<ShopState>((set, get) => ({
     const { shops, activeShopId } = get();
     return shops.find((s) => s.id === activeShopId) ?? null;
   },
+
+  reset: () => set({ shops: [], activeShopId: null }),
 }));

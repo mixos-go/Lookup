@@ -11,7 +11,7 @@ import { Badge } from '@/components/atoms/Badge';
 import { PlatformTag } from '@/components/atoms/PlatformTag';
 import { EmptyState } from '@/components/molecules/EmptyState';
 import { Skeleton } from '@/components/atoms/Skeleton';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { QUERY_KEYS } from '@/constants/queryKeys';
 import { useShopStore } from '@/stores/shopStore';
 import { shopsApi } from '@/api/shops';
@@ -38,24 +38,25 @@ function ShopCard({ shop, onSync, onDisconnect, syncing }: {
   onDisconnect: () => void;
   syncing: boolean;
 }) {
+  const { colors } = useTheme();
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
       <View style={styles.cardHeader}>
         <PlatformTag platform={shop.platform} />
         <Badge label={STATUS_LABEL[shop.status] ?? shop.status} variant={STATUS_VARIANT[shop.status] ?? 'neutral'} />
       </View>
-      <Text style={styles.shopName}>{shop.shopName}</Text>
-      <Text style={styles.shopMeta}>
+      <Text style={[styles.shopName, { color: colors.heading }]}>{shop.shopName}</Text>
+      <Text style={[styles.shopMeta, { color: colors.textSecondary }]}>
         {shop.productCount ?? 0} produk · Sinkron {shop.lastSyncAt ? timeAgo(shop.lastSyncAt) : 'belum pernah'}
       </Text>
       <View style={styles.cardActions}>
-        <TouchableOpacity style={styles.actionBtn} onPress={onSync} disabled={syncing}>
-          <Feather name="refresh-cw" size={14} color={Colors.primary} />
-          <Text style={styles.actionBtnLabel}>{syncing ? 'Menyinkron...' : 'Sinkron'}</Text>
+        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.primaryLight }]} onPress={onSync} disabled={syncing}>
+          <Feather name="refresh-cw" size={14} color={colors.primary} />
+          <Text style={[styles.actionBtnLabel, { color: colors.primary }]}>{syncing ? 'Menyinkron...' : 'Sinkron'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.actionBtn, styles.dangerBtn]} onPress={onDisconnect}>
-          <Feather name="trash-2" size={14} color={Colors.danger} />
-          <Text style={[styles.actionBtnLabel, styles.dangerLabel]}>Putuskan</Text>
+        <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.dangerLight }]} onPress={onDisconnect}>
+          <Feather name="trash-2" size={14} color={colors.danger} />
+          <Text style={[styles.actionBtnLabel, { color: colors.danger }]}>Putuskan</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -64,6 +65,7 @@ function ShopCard({ shop, onSync, onDisconnect, syncing }: {
 
 export function ShopListScreen() {
   const navigation = useNavigation<Nav>();
+  const { colors } = useTheme();
   const { setShops } = useShopStore();
   const queryClient = useQueryClient();
 
@@ -104,21 +106,21 @@ export function ShopListScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Toko Saya</Text>
+        <Text style={[styles.title, { color: colors.heading }]}>Toko Saya</Text>
         <TouchableOpacity
-          style={styles.addBtn}
+          style={[styles.addBtn, { backgroundColor: colors.primary }]}
           onPress={() => navigation.navigate('ConnectShop')}
         >
-          <Feather name="plus" size={18} color={Colors.white} />
+          <Feather name="plus" size={18} color={colors.white} />
         </TouchableOpacity>
       </View>
 
       {isLoading ? (
         <View style={styles.skeletonContainer}>
           {Array.from({ length: 3 }).map((_, i) => (
-            <View key={i} style={styles.skeletonCard}>
+            <View key={i} style={[styles.skeletonCard, { backgroundColor: colors.cardBg }]}>
               <Skeleton width={80} height={22} borderRadius={9999} />
               <Skeleton width="60%" height={18} />
               <Skeleton width="80%" height={13} />
@@ -137,7 +139,7 @@ export function ShopListScreen() {
         <ScrollView
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={Colors.primary} />
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={colors.primary} />
           }
         >
           {shops.map((shop) => (
@@ -156,34 +158,30 @@ export function ShopListScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1 },
   header: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: 16, paddingVertical: 12,
   },
-  title: { fontSize: 22, fontWeight: '800', color: Colors.heading },
+  title: { fontSize: 22, fontWeight: '800' },
   addBtn: {
     width: 38, height: 38, borderRadius: 10,
-    backgroundColor: Colors.primary,
     alignItems: 'center', justifyContent: 'center',
   },
   list: { padding: 16, gap: 12 },
   card: {
-    backgroundColor: Colors.cardBg, borderRadius: 14, padding: 16,
-    gap: 8, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 14, padding: 16,
+    gap: 8, borderWidth: 1,
   },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  shopName: { fontSize: 16, fontWeight: '700', color: Colors.heading },
-  shopMeta: { fontSize: 13, color: Colors.textSecondary },
+  shopName: { fontSize: 16, fontWeight: '700' },
+  shopMeta: { fontSize: 13 },
   cardActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
   actionBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 5, paddingVertical: 8, borderRadius: 8,
-    backgroundColor: Colors.primaryLight,
   },
-  actionBtnLabel: { fontSize: 13, fontWeight: '600', color: Colors.primary },
-  dangerBtn: { backgroundColor: Colors.dangerLight },
-  dangerLabel: { color: Colors.danger },
+  actionBtnLabel: { fontSize: 13, fontWeight: '600' },
   skeletonContainer: { padding: 16, gap: 12 },
-  skeletonCard: { backgroundColor: Colors.cardBg, borderRadius: 14, padding: 16, gap: 10 },
+  skeletonCard: { borderRadius: 14, padding: 16, gap: 10 },
 });

@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 interface StockInputProps {
   value: number;
@@ -14,6 +14,7 @@ interface StockInputProps {
 }
 
 export function StockInput({ value, onChange, label, min = 0, max = 999999 }: StockInputProps) {
+  const { colors } = useTheme();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const clamp = (v: number) => Math.min(max, Math.max(min, v));
@@ -30,19 +31,19 @@ export function StockInput({ value, onChange, label, min = 0, max = 999999 }: St
 
   return (
     <View style={styles.wrapper}>
-      {!!label && <Text style={styles.label}>{label}</Text>}
-      <View style={styles.row}>
+      {!!label && <Text style={[styles.label, { color: colors.textSecondary }]}>{label}</Text>}
+      <View style={[styles.row, { borderColor: colors.border }]}>
         <TouchableOpacity
-          style={styles.btn}
+          style={[styles.btn, { backgroundColor: colors.primaryLight }]}
           onPress={() => onChange(clamp(value - 1))}
           onLongPress={() => startLongPress(-1)}
           onPressOut={stopLongPress}
         >
-          <Feather name="minus" size={16} color={Colors.primary} />
+          <Feather name="minus" size={16} color={colors.primary} />
         </TouchableOpacity>
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, { color: colors.heading }]}
           value={String(value)}
           onChangeText={(t) => {
             const n = parseInt(t, 10);
@@ -53,12 +54,12 @@ export function StockInput({ value, onChange, label, min = 0, max = 999999 }: St
         />
 
         <TouchableOpacity
-          style={styles.btn}
+          style={[styles.btn, { backgroundColor: colors.primaryLight }]}
           onPress={() => onChange(clamp(value + 1))}
           onLongPress={() => startLongPress(1)}
           onPressOut={stopLongPress}
         >
-          <Feather name="plus" size={16} color={Colors.primary} />
+          <Feather name="plus" size={16} color={colors.primary} />
         </TouchableOpacity>
       </View>
     </View>
@@ -67,12 +68,11 @@ export function StockInput({ value, onChange, label, min = 0, max = 999999 }: St
 
 const styles = StyleSheet.create({
   wrapper: { gap: 4 },
-  label: { fontSize: 13, color: Colors.textSecondary },
+  label: { fontSize: 13 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.border,
     borderRadius: 10,
     overflow: 'hidden',
   },
@@ -81,13 +81,11 @@ const styles = StyleSheet.create({
     height: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.primaryLight,
   },
   input: {
     flex: 1,
     height: 40,
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.heading,
   },
 });

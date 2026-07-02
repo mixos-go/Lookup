@@ -10,7 +10,7 @@ import { PriceInput } from '@/components/molecules/PriceInput';
 import { Button } from '@/components/atoms/Button';
 import { Skeleton } from '@/components/atoms/Skeleton';
 import { ErrorState } from '@/components/molecules/ErrorState';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { QUERY_KEYS } from '@/constants/queryKeys';
 import { productsApi, priceApi } from '@/api/index';
 import type { RootStackParamList, ProductDetail, ProductVariant } from '@/types';
@@ -25,6 +25,7 @@ interface PriceState {
 export function EditPriceScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const { colors } = useTheme();
   const { productId, shopId } = route.params;
   const queryClient = useQueryClient();
   const [priceState, setPriceState] = useState<PriceState>({});
@@ -70,7 +71,7 @@ export function EditPriceScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
         <View style={styles.skeletonContainer}>
           {Array.from({ length: 2 }).map((_, i) => (
             <View key={i} style={styles.skeletonItem}>
@@ -85,7 +86,7 @@ export function EditPriceScreen() {
 
   if (error || !product) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
         <ErrorState message="Gagal memuat data produk." onRetry={refetch} />
       </SafeAreaView>
     );
@@ -94,14 +95,14 @@ export function EditPriceScreen() {
   const variants = product.variants ?? [];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-        <Text style={styles.hint}>Ubah harga jual dan harga coret untuk setiap varian.</Text>
+        <Text style={[styles.productName, { color: colors.heading }]} numberOfLines={2}>{product.name}</Text>
+        <Text style={[styles.hint, { color: colors.textSecondary }]}>Ubah harga jual dan harga coret untuk setiap varian.</Text>
 
         {variants.map((v: ProductVariant) => (
-          <View key={v.variantId} style={styles.variantCard}>
-            <Text style={styles.variantName}>{v.name}</Text>
+          <View key={v.variantId} style={[styles.variantCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+            <Text style={[styles.variantName, { color: colors.textPrimary }]}>{v.name}</Text>
             <PriceInput
               salePrice={priceState[v.variantId]?.salePrice ?? v.price}
               originalPrice={priceState[v.variantId]?.originalPrice ?? v.originalPrice ?? v.price}
@@ -122,7 +123,7 @@ export function EditPriceScreen() {
         ))}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { backgroundColor: colors.cardBg, borderTopColor: colors.border }]}>
         <Button
           label={saveMutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
           onPress={() => saveMutation.mutate()}
@@ -136,20 +137,19 @@ export function EditPriceScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1 },
   content: { padding: 16, gap: 16 },
-  productName: { fontSize: 16, fontWeight: '700', color: Colors.heading },
-  hint: { fontSize: 13, color: Colors.textSecondary },
+  productName: { fontSize: 16, fontWeight: '700' },
+  hint: { fontSize: 13 },
   variantCard: {
-    backgroundColor: Colors.cardBg, borderRadius: 12, padding: 14,
-    gap: 12, borderWidth: 1, borderColor: Colors.border,
+    borderRadius: 12, padding: 14,
+    gap: 12, borderWidth: 1,
   },
-  variantName: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
+  variantName: { fontSize: 14, fontWeight: '600' },
   skeletonContainer: { padding: 16, gap: 16 },
   skeletonItem: { gap: 8 },
   footer: {
     padding: 16, paddingBottom: 28,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    borderTopWidth: 1,
   },
 });

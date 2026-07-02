@@ -14,7 +14,7 @@ import { PlatformTag } from '@/components/atoms/PlatformTag';
 import { Badge } from '@/components/atoms/Badge';
 import { Skeleton } from '@/components/atoms/Skeleton';
 import { ErrorState } from '@/components/molecules/ErrorState';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { useShopStore } from '@/stores/shopStore';
 import { QUERY_KEYS } from '@/constants/queryKeys';
 import { productsApi } from '@/api/index';
@@ -33,6 +33,7 @@ const STATUS_MAP: Record<string, { label: string; variant: 'success' | 'danger' 
 export function ProductDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<Route>();
+  const { colors } = useTheme();
   const { productId, shopId } = route.params;
   const { getActiveShop } = useShopStore();
   const activeShop = getActiveShop();
@@ -52,7 +53,7 @@ export function ProductDetailScreen() {
 
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
         <ScrollView contentContainerStyle={styles.content}>
           <Skeleton width="100%" height={240} borderRadius={0} />
           <View style={{ padding: 16, gap: 12 }}>
@@ -67,7 +68,7 @@ export function ProductDetailScreen() {
 
   if (error || !product) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
         <ErrorState message="Gagal memuat detail produk." onRetry={refetch} />
       </SafeAreaView>
     );
@@ -88,17 +89,17 @@ export function ProductDetailScreen() {
   }));
 
   return (
-    <SafeAreaView style={styles.safe} edges={['bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Image source={{ uri: coverImage }} style={styles.cover} contentFit="cover" />
+        <Image source={{ uri: coverImage }} style={[styles.cover, { backgroundColor: colors.border }]} contentFit="cover" />
 
         <View style={styles.infoSection}>
           <View style={styles.tagRow}>
             <PlatformTag platform={activeShop?.platform ?? 'SHOPEE'} />
             <Badge label={statusInfo.label} variant={statusInfo.variant} />
           </View>
-          <Text style={styles.productName}>{product.name}</Text>
-          <Text style={styles.priceRange}>
+          <Text style={[styles.productName, { color: colors.heading }]}>{product.name}</Text>
+          <Text style={[styles.priceRange, { color: colors.primary }]}>
             {formatCurrency(product.priceRange.min, product.priceRange.currency)}
             {product.priceRange.min !== product.priceRange.max &&
               ` – ${formatCurrency(product.priceRange.max, product.priceRange.currency)}`}
@@ -115,7 +116,7 @@ export function ProductDetailScreen() {
 
         {(product.images?.length ?? 0) > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Gambar Produk ({product.images.length})</Text>
+            <Text style={[styles.sectionTitle, { color: colors.heading }]}>Gambar Produk ({product.images.length})</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.imageRow}>
               {product.images.map((img) => (
                 <Image
@@ -130,27 +131,27 @@ export function ProductDetailScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.actionBar}>
+      <View style={[styles.actionBar, { backgroundColor: colors.cardBg, borderTopColor: colors.border }]}>
         <TouchableOpacity
-          style={[styles.actionBtn, styles.actionBtnPrimary]}
+          style={[styles.actionBtn, { backgroundColor: colors.primary }]}
           onPress={() => navigation.navigate('EditStock', { productId, shopId })}
         >
-          <Feather name="layers" size={16} color={Colors.white} />
-          <Text style={styles.actionBtnPrimaryLabel}>Edit Stok</Text>
+          <Feather name="layers" size={16} color={colors.white} />
+          <Text style={[styles.actionBtnPrimaryLabel, { color: colors.white }]}>Edit Stok</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionBtn, styles.actionBtnSecondary]}
+          style={[styles.actionBtn, { backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary }]}
           onPress={() => navigation.navigate('EditPrice', { productId, shopId })}
         >
-          <Feather name="tag" size={16} color={Colors.primary} />
-          <Text style={styles.actionBtnSecondaryLabel}>Edit Harga</Text>
+          <Feather name="tag" size={16} color={colors.primary} />
+          <Text style={[styles.actionBtnSecondaryLabel, { color: colors.primary }]}>Edit Harga</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.actionBtn, styles.actionBtnSecondary]}
+          style={[styles.actionBtn, { backgroundColor: colors.primaryLight, borderWidth: 1, borderColor: colors.primary }]}
           onPress={() => navigation.navigate('EditImage', { productId, shopId })}
         >
-          <Feather name="image" size={16} color={Colors.primary} />
-          <Text style={styles.actionBtnSecondaryLabel}>Edit Gambar</Text>
+          <Feather name="image" size={16} color={colors.primary} />
+          <Text style={[styles.actionBtnSecondaryLabel, { color: colors.primary }]}>Edit Gambar</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -158,27 +159,24 @@ export function ProductDetailScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { flex: 1 },
   content: { paddingBottom: 100 },
-  cover: { width: '100%', height: 240, backgroundColor: Colors.border },
+  cover: { width: '100%', height: 240 },
   infoSection: { padding: 16, gap: 8 },
   tagRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  productName: { fontSize: 18, fontWeight: '700', color: Colors.heading, lineHeight: 26 },
-  priceRange: { fontSize: 16, fontWeight: '700', color: Colors.primary },
+  productName: { fontSize: 18, fontWeight: '700', lineHeight: 26 },
+  priceRange: { fontSize: 16, fontWeight: '700' },
   section: { paddingHorizontal: 16, marginBottom: 16 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', color: Colors.heading, marginBottom: 10 },
+  sectionTitle: { fontSize: 14, fontWeight: '700', marginBottom: 10 },
   imageRow: { flexDirection: 'row', gap: 8 },
   thumbImage: { width: 72, height: 72, borderRadius: 8 },
   actionBar: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     flexDirection: 'row', gap: 10,
     padding: 16, paddingBottom: 28,
-    backgroundColor: Colors.white,
-    borderTopWidth: 1, borderTopColor: Colors.border,
+    borderTopWidth: 1,
   },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 44, borderRadius: 10 },
-  actionBtnPrimary: { backgroundColor: Colors.primary },
-  actionBtnPrimaryLabel: { fontSize: 14, fontWeight: '700', color: Colors.white },
-  actionBtnSecondary: { backgroundColor: Colors.primaryLight, borderWidth: 1, borderColor: Colors.primary },
-  actionBtnSecondaryLabel: { fontSize: 14, fontWeight: '600', color: Colors.primary },
+  actionBtnPrimaryLabel: { fontSize: 14, fontWeight: '700' },
+  actionBtnSecondaryLabel: { fontSize: 14, fontWeight: '600' },
 });

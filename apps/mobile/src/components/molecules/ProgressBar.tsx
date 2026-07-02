@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Animated, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/hooks/useTheme';
 
 interface ProgressBarProps {
   progress: number;
@@ -8,6 +8,7 @@ interface ProgressBarProps {
 }
 
 export function ProgressBar({ progress, failed }: ProgressBarProps) {
+  const { colors } = useTheme();
   const animWidth = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -19,10 +20,10 @@ export function ProgressBar({ progress, failed }: ProgressBarProps) {
   }, [progress]);
 
   const fillColor =
-    failed ? Colors.danger : progress >= 100 ? Colors.success : Colors.primary;
+    failed ? colors.danger : progress >= 100 ? colors.success : colors.primary;
 
   return (
-    <View style={styles.track}>
+    <View style={[styles.track, { backgroundColor: colors.border }]}>
       <Animated.View
         style={[
           styles.fill,
@@ -41,6 +42,6 @@ export function ProgressBar({ progress, failed }: ProgressBarProps) {
 }
 
 const styles = StyleSheet.create({
-  track: { height: 6, borderRadius: 3, backgroundColor: Colors.border, overflow: 'hidden' },
+  track: { height: 6, borderRadius: 3, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 3 },
 });

@@ -1,7 +1,7 @@
 // src/components/atoms/Button.tsx
 import React from 'react';
-import { TouchableOpacity, Text, ActivityIndicator, StyleSheet, View } from 'react-native';
-import { Colors } from '@/constants';
+import { TouchableOpacity, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { useTheme } from '@/hooks/useTheme';
 
 type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'platform-shopee' | 'platform-tiktok';
 type Size = 'sm' | 'md' | 'lg';
@@ -19,35 +19,39 @@ interface ButtonProps {
 const HEIGHT: Record<Size, number> = { sm: 32, md: 44, lg: 52 };
 const FONT_SIZE: Record<Size, number> = { sm: 13, md: 15, lg: 17 };
 
-const BG: Record<Variant, string> = {
-  primary: Colors.primary,
-  secondary: Colors.white,
-  ghost: 'transparent',
-  danger: Colors.danger,
-  'platform-shopee': Colors.shopee,
-  'platform-tiktok': Colors.tiktok,
-};
-
-const TEXT_COLOR: Record<Variant, string> = {
-  primary: Colors.white,
-  secondary: Colors.primary,
-  ghost: Colors.primary,
-  danger: Colors.white,
-  'platform-shopee': Colors.white,
-  'platform-tiktok': Colors.white,
-};
-
-const BORDER: Record<Variant, string | undefined> = {
-  primary: undefined,
-  secondary: Colors.primary,
-  ghost: undefined,
-  danger: undefined,
-  'platform-shopee': undefined,
-  'platform-tiktok': undefined,
-};
-
 export function Button({ label, onPress, variant = 'primary', size = 'md', loading, disabled, fullWidth }: ButtonProps) {
+  const { colors } = useTheme();
   const isDisabled = disabled || loading;
+
+  // Semantic/platform colors (primary, danger, shopee, tiktok) are identical
+  // in both themes — only `secondary`'s surface needs to track cardBg so it
+  // doesn't render as a stray white box on a dark background.
+  const BG: Record<Variant, string> = {
+    primary: colors.primary,
+    secondary: colors.cardBg,
+    ghost: 'transparent',
+    danger: colors.danger,
+    'platform-shopee': colors.shopee,
+    'platform-tiktok': colors.tiktok,
+  };
+
+  const TEXT_COLOR: Record<Variant, string> = {
+    primary: colors.white,
+    secondary: colors.primary,
+    ghost: colors.primary,
+    danger: colors.white,
+    'platform-shopee': colors.white,
+    'platform-tiktok': colors.white,
+  };
+
+  const BORDER: Record<Variant, string | undefined> = {
+    primary: undefined,
+    secondary: colors.primary,
+    ghost: undefined,
+    danger: undefined,
+    'platform-shopee': undefined,
+    'platform-tiktok': undefined,
+  };
 
   return (
     <TouchableOpacity

@@ -2,7 +2,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Feather } from '@expo/vector-icons';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { HomeScreen } from '@/screens/HomeScreen';
 import { ProductListScreen } from '@/screens/ProductListScreen';
 import { ShopListScreen } from '@/screens/ShopListScreen';
@@ -21,15 +21,17 @@ const TAB_ICONS: Record<keyof MainTabParamList, FeatherIconName> = {
 };
 
 export function MainTabNavigator() {
+  const { colors } = useTheme();
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.placeholder,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.placeholder,
         tabBarStyle: {
-          backgroundColor: Colors.white,
-          borderTopColor: Colors.border,
+          backgroundColor: colors.cardBg,
+          borderTopColor: colors.border,
           borderTopWidth: 1,
         },
         tabBarIcon: ({ color, size }) => (

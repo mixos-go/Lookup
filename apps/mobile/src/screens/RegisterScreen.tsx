@@ -7,7 +7,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Button } from '@/components/atoms/Button';
 import { AppTextInput } from '@/components/atoms/AppTextInput';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/stores/authStore';
 import type { RootStackParamList } from '@/types';
@@ -16,6 +16,7 @@ type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 export function RegisterScreen() {
   const navigation = useNavigation<Nav>();
+  const { colors } = useTheme();
   const { setAuth } = useAuthStore();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -52,12 +53,12 @@ export function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
-            <Text style={styles.title}>Buat Akun</Text>
-            <Text style={styles.subtitle}>Mulai kelola toko Shopee & TikTok-mu</Text>
+            <Text style={[styles.title, { color: colors.heading }]}>Buat Akun</Text>
+            <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Mulai kelola toko Shopee & TikTok-mu</Text>
           </View>
 
           <View style={styles.form}>
@@ -95,13 +96,13 @@ export function RegisterScreen() {
               secureTextEntry
             />
 
-            {!!apiError && <Text style={styles.apiError}>{apiError}</Text>}
+            {!!apiError && <Text style={[styles.apiError, { color: colors.danger }]}>{apiError}</Text>}
 
             <Button label="Daftar" onPress={handleRegister} loading={loading} fullWidth />
 
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.loginLink}>
-              <Text style={styles.loginText}>
-                Sudah punya akun? <Text style={styles.loginHighlight}>Masuk</Text>
+              <Text style={[styles.loginText, { color: colors.textSecondary }]}>
+                Sudah punya akun? <Text style={[styles.loginHighlight, { color: colors.primary }]}>Masuk</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -112,15 +113,15 @@ export function RegisterScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.white },
+  safe: { flex: 1 },
   flex: { flex: 1 },
   container: { flexGrow: 1, padding: 24, gap: 32 },
   header: { marginTop: 24, gap: 8 },
-  title: { fontSize: 28, fontWeight: '800', color: Colors.heading },
-  subtitle: { fontSize: 14, color: Colors.textSecondary },
+  title: { fontSize: 28, fontWeight: '800' },
+  subtitle: { fontSize: 14 },
   form: { gap: 14 },
-  apiError: { fontSize: 13, color: Colors.danger, textAlign: 'center' },
+  apiError: { fontSize: 13, textAlign: 'center' },
   loginLink: { alignItems: 'center', marginTop: 8 },
-  loginText: { fontSize: 14, color: Colors.textSecondary },
-  loginHighlight: { color: Colors.primary, fontWeight: '600' },
+  loginText: { fontSize: 14 },
+  loginHighlight: { fontWeight: '600' },
 });

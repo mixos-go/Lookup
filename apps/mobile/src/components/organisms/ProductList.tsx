@@ -4,7 +4,7 @@ import { FlashList } from '@shopify/flash-list';
 import { ProductCard } from '@/components/molecules/ProductCard';
 import { Skeleton } from '@/components/atoms/Skeleton';
 import { EmptyState } from '@/components/molecules/EmptyState';
-import { Colors } from '@/constants';
+import { useTheme } from '@/hooks/useTheme';
 import type { ProductSummary, Platform } from '@/types';
 
 interface ProductListProps {
@@ -22,8 +22,9 @@ interface ProductListProps {
 }
 
 function SkeletonCard() {
+  const { colors } = useTheme();
   return (
-    <View style={styles.skeletonCard}>
+    <View style={[styles.skeletonCard, { backgroundColor: colors.cardBg }]}>
       <Skeleton width={64} height={64} borderRadius={10} />
       <View style={styles.skeletonLines}>
         <Skeleton width="70%" height={14} />
@@ -50,6 +51,8 @@ export function ProductList({
   isSelected,
   ListHeaderComponent,
 }: ProductListProps) {
+  const { colors } = useTheme();
+
   const renderItem = useCallback(
     ({ item }: { item: ProductSummary }) => (
       <ProductCard
@@ -97,7 +100,7 @@ export function ProductList({
         <RefreshControl
           refreshing={isRefreshing}
           onRefresh={onRefresh}
-          tintColor={Colors.primary}
+          tintColor={colors.primary}
         />
       }
     />
@@ -111,7 +114,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     padding: 12,
-    backgroundColor: Colors.cardBg,
     borderRadius: 12,
   },
   skeletonLines: { flex: 1, gap: 8, justifyContent: 'center' },

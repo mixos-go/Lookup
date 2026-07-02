@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Badge } from '@/components/atoms/Badge';
 import { ProgressBar } from '@/components/molecules/ProgressBar';
-import { Colors } from '@/constants/colors';
+import { useTheme } from '@/hooks/useTheme';
 import type { BulkJobSummary } from '@/types';
 
 function timeAgo(dateStr: string): string {
@@ -37,18 +37,19 @@ interface JobStatusCardProps {
 }
 
 export function JobStatusCard({ job }: JobStatusCardProps) {
+  const { colors } = useTheme();
   const progress = job.total > 0 ? Math.round((job.successCount / job.total) * 100) : 0;
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
       <View style={styles.header}>
         <View style={styles.typeRow}>
           <Feather
             name={job.type === 'STOCK' ? 'layers' : 'tag'}
             size={14}
-            color={Colors.primary}
+            color={colors.primary}
           />
-          <Text style={styles.typeLabel}>
+          <Text style={[styles.typeLabel, { color: colors.textPrimary }]}>
             {job.type === 'STOCK' ? 'Update Stok' : 'Update Harga'}
           </Text>
         </View>
@@ -58,15 +59,15 @@ export function JobStatusCard({ job }: JobStatusCardProps) {
       <ProgressBar progress={progress} failed={job.status === 'FAILED'} />
 
       <View style={styles.stats}>
-        <Text style={styles.statLabel}>
-          <Text style={styles.statNum}>{job.successCount}</Text> berhasil
+        <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+          <Text style={[styles.statNum, { color: colors.textPrimary }]}>{job.successCount}</Text> berhasil
         </Text>
         {job.failedCount > 0 && (
-          <Text style={[styles.statLabel, { color: Colors.danger }]}>
+          <Text style={[styles.statLabel, { color: colors.danger }]}>
             <Text style={styles.statNum}>{job.failedCount}</Text> gagal
           </Text>
         )}
-        <Text style={styles.time}>{timeAgo(job.createdAt)}</Text>
+        <Text style={[styles.time, { color: colors.placeholder }]}>{timeAgo(job.createdAt)}</Text>
       </View>
     </View>
   );
@@ -74,18 +75,16 @@ export function JobStatusCard({ job }: JobStatusCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.cardBg,
     borderRadius: 12,
     padding: 14,
     gap: 10,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   typeRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  typeLabel: { fontSize: 14, fontWeight: '600', color: Colors.textPrimary },
+  typeLabel: { fontSize: 14, fontWeight: '600' },
   stats: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  statLabel: { fontSize: 13, color: Colors.textSecondary },
-  statNum: { fontWeight: '700', color: Colors.textPrimary },
-  time: { marginLeft: 'auto', fontSize: 12, color: Colors.placeholder },
+  statLabel: { fontSize: 13 },
+  statNum: { fontWeight: '700' },
+  time: { marginLeft: 'auto', fontSize: 12 },
 });
