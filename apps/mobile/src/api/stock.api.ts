@@ -5,10 +5,11 @@ export const stockApi = {
     productId: string,
     input: { shopId: string; updates: Array<{ variantId: string; stock: number }> },
   ): Promise<{ updated: Array<{ variantId: string; stock: number }>; updatedAt: string }> {
-    const data = await apiClient.patch<{
-      updated: Array<{ variantId: string; stock: number }>;
-      updatedAt: string;
-    }>(`/api/products/${productId}/stock`, input);
-    return data;
+    // FIX: Changed from /api/products/${productId}/stock to /api/inventory/${productId}
+    const { data } = await apiClient.patch<{
+      success: boolean;
+      data: { updated: Array<{ variantId: string; stock: number }>; updatedAt: string };
+    }>(`/api/inventory/${productId}`, input);
+    return data.data;
   },
 };
