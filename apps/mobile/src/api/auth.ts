@@ -13,6 +13,19 @@ export const authApi = {
     return data.data;
   },
 
+  refresh: async (refreshToken: string) => {
+    const { data } = await apiClient.post<{ 
+      success: boolean; 
+      data: { user: User } & AuthTokens 
+    }>('/api/auth/refresh', { refreshToken });
+    return data.data;
+  },
+
+  me: async () => {
+    const { data } = await apiClient.get<{ success: boolean; data: { user: User } }>('/api/auth/me');
+    return data.data.user;
+  },
+
   logout: async (refreshToken: string) => {
     await apiClient.post('/api/auth/logout', { refreshToken });
   },

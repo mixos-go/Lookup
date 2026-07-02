@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import type { User } from '@/types';
 import { setAccessToken, storeRefreshToken, clearTokens, getStoredRefreshToken } from '@/api/client';
+import { authApi } from '@/api/auth';
 
 interface AuthState {
   user: User | null;
@@ -10,9 +11,10 @@ interface AuthState {
   setAuth: (user: User, accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
   initialize: () => Promise<void>;
+  refreshAuth: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   isAuthenticated: false,
   isInitialized: false,
@@ -20,7 +22,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setAuth: async (user, accessToken, refreshToken) => {
     setAccessToken(accessToken);
     await storeRefreshToken(refreshToken);
-    set({ user, isAuthenticated: true });
+    set({ user, isAuthenticated: true, isInitialized: true });
   },
 
   logout: async () => {
@@ -35,10 +37,71 @@ export const useAuthStore = create<AuthState>((set) => ({
     });
   },
 
+  refreshAuth: async () => {
+    try {
+      const refreshToken = await getStoredRefreshToken();
+      if (!refreshToken) {
+        await get().logout();
+        return;
+      }
+
+      const result = await authApi.refresh(refreshToken);
+      
+      setAccessToken(result.accessToken);
+      await storeRefreshToken(result.refreshToken);
+      
+      set({ 
+        user: result.user,
+        isAuthenticated: true,
+        isInitialized: true
+      });
+    } catch (error) {
+      console.error('Failed to refresh auth:', error);
+      await get().logout();
+    }
+  },
+
   initialize: async () => {
-    // Check if refresh token exists in SecureStore
-    // If yes, the API client will auto-refresh on first 401
-    const refreshToken = await getStoredRefreshToken();
-    set({ isAuthenticated: !!refreshToken, isInitialized: true });
+    try {
+      const refreshToken = await getStoredRefreshToken();
+      
+      if (!refreshToken) {
+        // No refresh token, user is not authenticated
+        set({ isAuthenticated: false, isInitialized: true });
+        return;
+      }
+
+      // Try to refresh the token and get user data
+      try {
+        const result = await authApi.refresh(refreshToken);
+        
+        setAccessToken(result.accessToken);
+        await storeRefreshToken(result.refreshToken);
+        
+        set({ 
+          user: result.user,
+          isAuthenticated: true,
+          isInitialized: true
+        });
+      } catch (refreshError) {
+        console.error('Failed to refresh token on init:', refreshError);
+        // Token refresh failed, clear everything
+        await clearTokens();
+        set({ 
+          user: null,
+          isAuthenticated: false,
+          isInitialized: true
+        });
+      }
+    } catch (error) {
+      console.error('Failed to initialize auth:', error);
+      // If anything fails, ensure we're not authenticated
+      await clearTokens();
+      set({ 
+        user: null,
+        isAuthenticated: false,
+        isInitialized: true
+      });
+    }
   },
 }));

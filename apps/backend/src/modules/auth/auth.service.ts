@@ -26,6 +26,15 @@ export class AuthService {
     return { id: user.id, email: user.email, name: user.name };
   }
 
+  async getUserById(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, name: true },
+    });
+    if (!user) throw new Error('USER_NOT_FOUND');
+    return user;
+  }
+
   async createRefreshToken(userId: string): Promise<string> {
     const token = crypto.randomBytes(40).toString('hex');
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days

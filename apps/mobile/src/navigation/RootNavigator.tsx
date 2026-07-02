@@ -1,7 +1,8 @@
 // src/navigation/RootNavigator.tsx
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme, type Theme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { createNavigationContainerRef, type NavigationContainerRef } from '@react-navigation/core';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/hooks/useTheme';
@@ -25,13 +26,41 @@ import type { RootStackParamList } from '@/types';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
+// Create navigation ref for use in effects
+const navigationRef = createNavigationContainerRef<RootStackParamList>();
+
 export function RootNavigator() {
   const { isAuthenticated, isInitialized, initialize } = useAuthStore();
   const { colors, scheme } = useTheme();
+  const prevAuthRef = useRef(isAuthenticated);
 
   useEffect(() => {
     initialize();
   }, []);
+
+  // Handle auth state changes - navigate to appropriate screen
+  useEffect(() => {
+    if (!isInitialized) return;
+    
+    const prevAuth = prevAuthRef.current;
+    prevAuthRef.current = isAuthenticated;
+    
+    // If user just logged out (was authenticated, now not), reset to Login
+    if (prevAuth && !isAuthenticated) {
+      navigationRef.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+    }
+    
+    // If user just logged in (was not authenticated, now is), reset to MainTabs
+    if (!prevAuth && isAuthenticated) {
+      navigationRef.reset({
+        index: 0,
+        routes: [{ name: 'MainTabs' }],
+      });
+    }
+  }, [isAuthenticated, isInitialized]);
 
   if (!isInitialized) {
     return (
@@ -54,7 +83,7 @@ export function RootNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navTheme}>
+    <NavigationContainer theme={navTheme} ref={navigationRef}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <>
@@ -87,3 +116,6 @@ export function RootNavigator() {
     </NavigationContainer>
   );
 }
+
+// Export navigation ref for use in deep linking and other places
+export { navigationRef };
