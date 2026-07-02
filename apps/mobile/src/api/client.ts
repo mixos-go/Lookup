@@ -10,6 +10,9 @@ const ACCESS_TOKEN_KEY = 'lookup_access_token';
 // In-memory access token (never stored to disk)
 let inMemoryAccessToken: string | null = null;
 
+// Callback to trigger logout when refresh fails
+let onAuthFailureCallback: (() => Promise<void>) | null = null;
+
 export function setAccessToken(token: string) {
   inMemoryAccessToken = token;
 }
@@ -33,7 +36,12 @@ export async function clearTokens() {
   await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
 }
 
-// ██████ Base Client ████████████████████████████████████████████████████████
+// Set callback to trigger when auth fails (e.g., refresh token expired)
+export function setOnAuthFailureCallback(callback: () => Promise<void>) {
+  onAuthFailureCallback = callback;
+}
+
+// ████████████████████████████████████████████████████████████████████████████████████████████████
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_URL,
@@ -77,7 +85,9 @@ apiClient.interceptors.response.use(
 
     try {
       const refreshToken = await getStoredRefreshToken();
-      if (!refreshToken) throw new Error('No refresh token');
+      if (!refreshToken) {
+        throw new Error('No refresh token');
+      }
 
       const { data } = await axios.post(`${API_URL}/api/auth/refresh`, { refreshToken });
       const { accessToken, refreshToken: newRefreshToken } = data.data;
@@ -90,10 +100,20 @@ apiClient.interceptors.response.use(
 
       originalRequest.headers.Authorization = `Bearer ${accessToken}`;
       return apiClient(originalRequest);
-    } catch {
+    } catch (refreshError) {
+      console.error('Token refresh failed:', refreshError);
       pendingRequests = [];
       await clearTokens();
-      // Trigger logout via event or store reset
+      
+      // Trigger logout callback if available
+      if (onAuthFailureCallback) {
+        try {
+          await onAuthFailureCallback();
+        } catch (logoutError) {
+          console.error('Failed to trigger logout callback:', logoutError);
+        }
+      }
+      
       return Promise.reject(error);
     } finally {
       isRefreshing = false;

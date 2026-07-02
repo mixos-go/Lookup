@@ -4,8 +4,10 @@ import { Linking } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { RootNavigator } from '@/navigation/RootNavigator';
+import { RootNavigator, navigationRef } from '@/navigation/RootNavigator';
 import { ThemeProvider } from '@/hooks/useTheme';
+import { useAuthStore } from '@/stores/authStore';
+import { setOnAuthFailureCallback } from '@/api/client';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,6 +21,10 @@ const queryClient = new QueryClient({
 
 export default function App() {
   useEffect(() => {
+    // Initialize auth failure callback for API client interceptors
+    const authStoreState = useAuthStore.getState();
+    setOnAuthFailureCallback(() => authStoreState.logout());
+
     // Handle deep link when app is already open (foreground)
     const sub = Linking.addEventListener('url', ({ url }) => {
       handleDeepLink(url);
@@ -58,5 +64,10 @@ function handleDeepLink(url: string): void {
   if (success && shopId) {
     // Invalidate shops query → ShopListScreen and HomeScreen auto-refresh
     queryClient.invalidateQueries({ queryKey: ['shops'] });
+    
+    // Navigate to MainTabs if we're authenticated
+    if (navigationRef.isReady()) {
+      navigationRef.navigate('MainTabs');
+    }
   }
 }

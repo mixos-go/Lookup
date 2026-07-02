@@ -25,12 +25,29 @@ export async function authRoutes(app: FastifyInstance) {
     await authService.revokeRefreshToken(refreshToken);
     const newAccessToken = app.jwt.sign({ sub: record.userId }, { expiresIn: '15m' });
     const newRefreshToken = await authService.createRefreshToken(record.userId);
-    return reply.send({ success: true, data: { accessToken: newAccessToken, refreshToken: newRefreshToken } });
+    
+    // Get user data to return along with tokens
+    const user = await authService.getUserById(record.userId);
+    
+    return reply.send({ 
+      success: true, 
+      data: { 
+        accessToken: newAccessToken, 
+        refreshToken: newRefreshToken,
+        user 
+      } 
+    });
   });
 
   app.post('/api/auth/logout', { onRequest: [app.authenticate] }, async (req, reply) => {
     const { refreshToken } = RefreshSchema.parse(req.body);
     await authService.revokeRefreshToken(refreshToken);
     return reply.send({ success: true, data: { message: 'Logged out' } });
+  });
+
+  // Add a me endpoint to get current user info
+  app.get('/api/auth/me', { onRequest: [app.authenticate] }, async (req: any, reply) => {
+    const user = await authService.getUserById(req.user.sub);
+    return reply.send({ success: true, data: { user } });
   });
 }
