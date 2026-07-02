@@ -12,8 +12,19 @@ import * as SecureStore from 'expo-secure-store';
 
 const isWeb = Platform.OS === 'web';
 
+// Helper to check if we're in a browser environment with localStorage
+function hasLocalStorage(): boolean {
+  if (!isWeb) return false;
+  try {
+    return typeof window !== 'undefined' && !!window.localStorage;
+  } catch {
+    return false;
+  }
+}
+
 export async function getItemAsync(key: string): Promise<string | null> {
   if (isWeb) {
+    if (!hasLocalStorage()) return null;
     try {
       return window.localStorage.getItem(key);
     } catch {
@@ -25,6 +36,7 @@ export async function getItemAsync(key: string): Promise<string | null> {
 
 export async function setItemAsync(key: string, value: string): Promise<void> {
   if (isWeb) {
+    if (!hasLocalStorage()) return;
     try {
       window.localStorage.setItem(key, value);
     } catch {
@@ -37,6 +49,7 @@ export async function setItemAsync(key: string, value: string): Promise<void> {
 
 export async function deleteItemAsync(key: string): Promise<void> {
   if (isWeb) {
+    if (!hasLocalStorage()) return;
     try {
       window.localStorage.removeItem(key);
     } catch {
@@ -45,4 +58,19 @@ export async function deleteItemAsync(key: string): Promise<void> {
     return;
   }
   await SecureStore.deleteItemAsync(key);
+}
+
+// Additional helper to clear all storage (useful for logout)
+export async function clearAllStorage(): Promise<void> {
+  if (isWeb) {
+    if (!hasLocalStorage()) return;
+    try {
+      window.localStorage.clear();
+    } catch {
+      // ignore
+    }
+    return;
+  }
+  // For native, we can't clear all SecureStore items, so we rely on individual deletion
+  // This is a placeholder for future implementation if needed
 }

@@ -1,6 +1,6 @@
 // src/screens/ProfileScreen.tsx
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
@@ -12,6 +12,9 @@ import { useAuthStore } from '@/stores/authStore';
 import { useShopStore } from '@/stores/shopStore';
 import { authApi } from '@/api/auth';
 import { getStoredRefreshToken } from '@/api/client';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '@/types';
 
 const THEME_OPTIONS: Array<{ value: 'light' | 'dark' | 'system'; label: string; icon: React.ComponentProps<typeof Feather>['name'] }> = [
   { value: 'light', label: 'Terang', icon: 'sun' },
@@ -19,25 +22,69 @@ const THEME_OPTIONS: Array<{ value: 'light' | 'dark' | 'system'; label: string; 
   { value: 'system', label: 'Sistem', icon: 'smartphone' },
 ];
 
+type Nav = NativeStackNavigationProp<RootStackParamList>;
+
 export function ProfileScreen() {
+  const navigation = useNavigation<Nav>();
   const queryClient = useQueryClient();
   const { colors, mode, setMode } = useTheme();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const resetShops = useShopStore((s) => s.reset);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const performLogout = async () => {
-    // Best-effort server-side revoke — local logout must succeed either way,
-    // since the refresh token is short-lived and the user explicitly asked to leave.
+    setIsLoggingOut(true);
     try {
-      const refreshToken = await getStoredRefreshToken();
-      if (refreshToken) await authApi.logout(refreshToken);
-    } catch {
-      // ignore — local session clear below is what actually matters
+      // Best-effort server-side revoke — local logout must succeed either way,
+      // since the refresh token is short-lived and the user explicitly asked to leave.
+      try {
+        const refreshToken = await getStoredRefreshToken();
+        if (refreshToken) await authApi.logout(refreshToken);
+      } catch {
+        // ignore — local session clear below is what actually matters
+      }
+      
+      // Clear all caches and state
+      queryClient.clear();
+      resetShops();
+      await logout();
+      
+      // Reset navigation to Login screen
+      // This ensures the navigation stack is properly reset on both mobile and web
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+      
+      // For web: sometimes the navigation reset doesn't work properly due to React Navigation web limitations
+      // So we add a fallback to reload the page on web after a short delay
+      if (Platform.OS === 'web') {
+        setTimeout(() => {
+          // Check if we're still on the Profile screen (navigation didn't work)
+          // If so, force a full page reload
+          if (window.location.pathname.includes('profile') || window.location.pathname === '/') {
+            window.location.href = '/login';
+          }
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Logout failed:', error);
+      // Even if logout fails, we should still try to navigate to login
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
+      
+      // For web, force reload if navigation fails
+      if (Platform.OS === 'web') {
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 500);
+      }
+    } finally {
+      setIsLoggingOut(false);
     }
-    queryClient.clear();
-    resetShops();
-    await logout();
   };
 
   const handleLogoutPress = () => {
@@ -57,17 +104,17 @@ export function ProfileScreen() {
         {/* Account summary */}
         <View style={styles.accountCard}>
           <Avatar name={user?.name} size="lg" />
-          <Text style={[styles.name, { color: colors.heading }]}>{user?.name ?? '—'}</Text>
-          <Text style={[styles.email, { color: colors.textSecondary }]}>{user?.email ?? '—'}</Text>
+          <Text style={[styles.name, { color: colors.heading }]}>{user?.name ?? '\u2014'}</Text>
+          <Text style={[styles.email, { color: colors.textSecondary }]}>{user?.email ?? '\u2014'}</Text>
         </View>
 
         {/* Account info rows */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Info Akun</Text>
           <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-            <InfoRow icon="user" label="Nama" value={user?.name ?? '—'} />
+            <InfoRow icon="user" label="Nama" value={user?.name ?? '\u2014'} />
             <Divider />
-            <InfoRow icon="mail" label="Email" value={user?.email ?? '—'} />
+            <InfoRow icon="mail" label="Email" value={user?.email ?? '\u2014'} />
           </View>
         </View>
 
@@ -98,7 +145,13 @@ export function ProfileScreen() {
 
         {/* Logout */}
         <View style={styles.section}>
-          <Button label="Keluar" variant="danger" fullWidth onPress={handleLogoutPress} />
+          <Button 
+            label="Keluar" 
+            variant="danger" 
+            fullWidth 
+            onPress={handleLogoutPress} 
+            loading={isLoggingOut}
+          />
         </View>
 
         <Text style={[styles.version, { color: colors.placeholder }]}>LookUp v1.0.0</Text>

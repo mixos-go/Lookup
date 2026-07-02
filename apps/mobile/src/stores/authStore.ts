@@ -24,8 +24,15 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   logout: async () => {
+    // Clear all tokens from storage
     await clearTokens();
-    set({ user: null, isAuthenticated: false });
+    
+    // Reset state
+    set({ 
+      user: null, 
+      isAuthenticated: false,
+      isInitialized: true  // Keep initialized as true so we don't show loading screen
+    });
   },
 
   initialize: async () => {
