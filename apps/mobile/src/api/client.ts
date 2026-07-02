@@ -29,9 +29,11 @@ export async function getStoredRefreshToken(): Promise<string | null> {
 export async function clearTokens() {
   inMemoryAccessToken = null;
   await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  // Also clear from localStorage on web for completeness
+  await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
 }
 
-// ─── Base Client ─────────────────────────────────────────────────────────────
+// ██████ Base Client ████████████████████████████████████████████████████████
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_URL,
