@@ -12,6 +12,7 @@ redis.on('error', (err) => logger.error({ err }, 'Redis error'));
 export const CACHE_TTL = {
   PRODUCT_DETAIL: 60 * 5,       // 5 minutes
   PRODUCT_LIST: 60 * 2,         // 2 minutes
+  ORDER_LIST: 60 * 1,           // 1 minute — orders change more often than products
   TOKEN_CHECK: 30,              // 30 seconds
 } as const;
 

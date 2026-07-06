@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { authRoutes } from './auth/auth.route';
 import { shopRoutes } from './shops/shop.route';
 import { productRoutes } from './products/product.route';
+import { orderRoutes } from './orders/order.route';
 import { inventoryRoutes } from './inventory/inventory.route';
 import { priceRoutes } from './price/price.route';
 import { imageRoutes } from './images/image.route';
@@ -21,6 +22,7 @@ export async function registerRoutes(app: FastifyInstance) {
   await app.register(authRoutes);
   await app.register(shopRoutes);
   await app.register(productRoutes);
+  await app.register(orderRoutes);
   await app.register(inventoryRoutes);
   await app.register(priceRoutes);
   await app.register(imageRoutes);

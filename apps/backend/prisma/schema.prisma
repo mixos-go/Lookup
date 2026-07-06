@@ -83,6 +83,7 @@ model ShopConnection {
   user         User           @relation(fields: [userId], references: [id])
   updateLogs   UpdateLog[]
   bulkJobs     BulkJob[]
+  orders       OrderCache[]
 
   @@unique([userId, platform, platformShopId])
   @@index([userId])
@@ -215,6 +216,32 @@ model WebhookEvent {
   @@index([processed])
   @@index([receivedAt])
   @@map("webhook_events")
+}
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+
+model OrderCache {
+  id                String    @id @default(cuid())
+  shopConnectionId  String    @map("shop_connection_id")
+  platformOrderId   String    @map("platform_order_id")
+  status            String
+  buyerName         String?   @map("buyer_name")
+  totalAmount       Decimal   @default(0) @map("total_amount") @db.Decimal(15, 2)
+  currency          String    @default("IDR")
+  itemCount         Int       @default(0) @map("item_count")
+  paidAt            DateTime? @map("paid_at")
+  rawData           Json      @map("raw_data")
+  platformCreatedAt DateTime? @map("platform_created_at")
+  platformUpdatedAt DateTime? @map("platform_updated_at")
+  cachedAt          DateTime  @default(now()) @map("cached_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  shopConnection ShopConnection @relation(fields: [shopConnectionId], references: [id])
+
+  @@unique([shopConnectionId, platformOrderId])
+  @@index([shopConnectionId])
+  @@index([status])
+  @@map("order_cache")
 }
 
 // ─── OAuth State ──────────────────────────────────────────────────────────────
