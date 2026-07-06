@@ -1,4 +1,4 @@
-// src/hooks/useTheme.tsx
+// src/hooks/useTheme.tsx — Dark-first default
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useColorScheme } from 'react-native';
 import * as SecureStore from '@/utils/secureStorage';
@@ -18,7 +18,8 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const systemScheme = useColorScheme();
-  const [mode, setModeState] = useState<ThemeMode>('system');
+  // Default: 'dark' — dark-first design system; respects stored user preference
+  const [mode, setModeState] = useState<ThemeMode>('dark');
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -32,15 +33,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
   const setMode = useCallback((next: ThemeMode) => {
     setModeState(next);
-    SecureStore.setItemAsync(THEME_MODE_KEY, next).catch(() => {
-      // Non-fatal — falls back to 'system' next launch if persist fails.
-    });
+    SecureStore.setItemAsync(THEME_MODE_KEY, next).catch(() => {});
   }, []);
 
-  // Avoid a light->dark flash on first frame while the stored preference loads.
   if (!loaded) return null;
 
-  const scheme: 'light' | 'dark' = mode === 'system' ? (systemScheme ?? 'light') : mode;
+  const scheme: 'light' | 'dark' = mode === 'system' ? (systemScheme ?? 'dark') : mode;
   const colors = scheme === 'dark' ? DarkColors : Colors;
 
   return (
@@ -52,8 +50,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
-  if (!ctx) {
-    throw new Error('useTheme() must be used inside <ThemeProvider>');
-  }
+  if (!ctx) throw new Error('useTheme() must be used inside <ThemeProvider>');
   return ctx;
 }

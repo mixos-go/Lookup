@@ -39,7 +39,7 @@ export class ProductService {
         id: String(item.item_id),
         platformProductId: String(item.item_id),
         name: item.item_name ?? '',
-        coverImage: item.item_sku ?? '',
+        coverImage: item.image?.image_url_list?.[0] ?? '',
         status: item.item_status ?? 'NORMAL',
         totalStock: item.stock_info_v2?.seller_stock?.reduce((s: number, x: any) => s + (x.stock ?? 0), 0) ?? 0,
         priceRange: {

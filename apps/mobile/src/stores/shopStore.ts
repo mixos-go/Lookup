@@ -7,6 +7,8 @@ interface ShopState {
   activeShopId: string | null;
   setShops: (shops: Shop[]) => void;
   setActiveShop: (shopId: string) => void;
+  /** Alias for setActiveShop — used by screens */
+  setActiveShopId: (shopId: string) => void;
   getActiveShop: () => Shop | null;
   reset: () => void;
 }
@@ -20,6 +22,7 @@ export const useShopStore = create<ShopState>((set, get) => ({
   },
 
   setActiveShop: (shopId) => set({ activeShopId: shopId }),
+  setActiveShopId: (shopId) => set({ activeShopId: shopId }),
 
   getActiveShop: () => {
     const { shops, activeShopId } = get();

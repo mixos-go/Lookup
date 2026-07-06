@@ -2,12 +2,18 @@
 
 export type Platform = 'SHOPEE' | 'TIKTOK';
 export type ShopStatus = 'ACTIVE' | 'TOKEN_EXPIRED' | 'DISCONNECTED';
-export type ProductStatus = 'ACTIVE' | 'INACTIVE' | 'SOLD_OUT';
+// Shopee returns: NORMAL (active), UNLIST (delisted by seller), BANNED, DELETED
+// TikTok returns: ACTIVE, INACTIVE, SELLER_DEACTIVATED, PLATFORM_DEACTIVATED
+// SOLD_OUT is derived (totalStock === 0, not a platform status)
+export type ProductStatus =
+  | 'ACTIVE' | 'INACTIVE' | 'SOLD_OUT'       // normalised / legacy
+  | 'NORMAL' | 'UNLIST' | 'BANNED' | 'DELETED' // Shopee native
+  | 'SELLER_DEACTIVATED' | 'PLATFORM_DEACTIVATED'; // TikTok native
 export type BulkJobStatusValue = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'PARTIAL';
 export type BulkJobType = 'STOCK' | 'PRICE';
 export type UpdateType = 'STOCK' | 'PRICE' | 'IMAGE';
 
-// ─── Auth ────────────────────────────────────────────────────────────────────
+// ─── Auth ─────────────────────────────────────────────────────────────────────
 export interface User {
   id: string;
   email: string;
@@ -30,7 +36,7 @@ export interface RegisterInput {
   name: string;
 }
 
-// ─── Shops ───────────────────────────────────────────────────────────────────
+// ─── Shops ────────────────────────────────────────────────────────────────────
 export interface Shop {
   id: string;
   platformShopId: string;
@@ -86,7 +92,7 @@ export interface BulkStockItem {
   productId: string;
   variantId: string;
   stock: number;
-  productName?: string;   // for display
+  productName?: string;
   variantName?: string;
 }
 
@@ -151,6 +157,7 @@ export interface ApiError {
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 export type RootStackParamList = {
+  Landing: undefined;
   Login: undefined;
   Register: undefined;
   MainTabs: undefined;
