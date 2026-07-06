@@ -1,12 +1,12 @@
-// src/screens/ProfileScreen.tsx
+// src/screens/ProfileScreen.tsx — Redesigned profile & settings
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import {
+  View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView,
+  Platform, useWindowDimensions,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { Feather } from '@expo/vector-icons';
-import { Avatar } from '@/components/atoms/Avatar';
-import { Button } from '@/components/atoms/Button';
-import { Divider } from '@/components/atoms/Divider';
 import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/stores/authStore';
 import { useShopStore } from '@/stores/shopStore';
@@ -17,12 +17,34 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/types';
 
 const THEME_OPTIONS: Array<{ value: 'light' | 'dark' | 'system'; label: string; icon: React.ComponentProps<typeof Feather>['name'] }> = [
-  { value: 'light', label: 'Terang', icon: 'sun' },
-  { value: 'dark', label: 'Gelap', icon: 'moon' },
+  { value: 'dark',   label: 'Gelap',  icon: 'moon'       },
+  { value: 'light',  label: 'Terang', icon: 'sun'        },
   { value: 'system', label: 'Sistem', icon: 'smartphone' },
 ];
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
+
+function SectionTitle({ label }: { label: string }) {
+  const { colors } = useTheme();
+  return (
+    <Text style={[profileStyles.sectionTitle, { color: colors.placeholder }]}>{label}</Text>
+  );
+}
+
+function InfoRow({ icon, label, value }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; value: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={[profileStyles.infoRow, { borderBottomColor: colors.border }]}>
+      <View style={[profileStyles.infoIcon, { backgroundColor: colors.surface2 }]}>
+        <Feather name={icon} size={16} color={colors.textSecondary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[profileStyles.infoLabel, { color: colors.placeholder }]}>{label}</Text>
+        <Text style={[profileStyles.infoValue, { color: colors.heading }]}>{value}</Text>
+      </View>
+    </View>
+  );
+}
 
 export function ProfileScreen() {
   const navigation = useNavigation<Nav>();
@@ -31,183 +53,159 @@ export function ProfileScreen() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const resetShops = useShopStore((s) => s.reset);
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 900;
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const initials = (user?.name ?? 'U').split(' ').slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 
   const performLogout = async () => {
     setIsLoggingOut(true);
     try {
-      // Best-effort server-side revoke — local logout must succeed either way,
-      // since the refresh token is short-lived and the user explicitly asked to leave.
       try {
-        const refreshToken = await getStoredRefreshToken();
-        if (refreshToken) await authApi.logout(refreshToken);
-      } catch {
-        // ignore — local session clear below is what actually matters
-      }
-      
-      // Clear all caches and state
+        const rt = await getStoredRefreshToken();
+        if (rt) await authApi.logout(rt);
+      } catch {}
       queryClient.clear();
       resetShops();
       await logout();
-      
-      // Reset navigation to Login screen
-      // This ensures the navigation stack is properly reset on both mobile and web
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
-      
-      // For web: sometimes the navigation reset doesn't work properly due to React Navigation web limitations
-      // So we add a fallback to reload the page on web after a short delay
+      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
       if (Platform.OS === 'web') {
-        setTimeout(() => {
-          // Check if we're still on the Profile screen (navigation didn't work)
-          // If so, force a full page reload
-          if (window.location.pathname.includes('profile') || window.location.pathname === '/') {
-            window.location.href = '/login';
-          }
-        }, 500);
+        setTimeout(() => { window.location.href = '/'; }, 400);
       }
-    } catch (error) {
-      console.error('Logout failed:', error);
-      // Even if logout fails, we should still try to navigate to login
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
-      
-      // For web, force reload if navigation fails
-      if (Platform.OS === 'web') {
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 500);
-      }
+    } catch {
+      navigation.reset({ index: 0, routes: [{ name: 'Landing' }] });
     } finally {
       setIsLoggingOut(false);
     }
   };
 
-  const handleLogoutPress = () => {
-    Alert.alert(
-      'Keluar',
-      'Yakin ingin keluar dari akun ini?',
-      [
-        { text: 'Batal', style: 'cancel' },
-        { text: 'Keluar', style: 'destructive', onPress: performLogout },
-      ],
-    );
+  const handleLogout = () => {
+    Alert.alert('Keluar', 'Yakin ingin keluar dari akun ini?', [
+      { text: 'Batal', style: 'cancel' },
+      { text: 'Keluar', style: 'destructive', onPress: performLogout },
+    ]);
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Account summary */}
-        <View style={styles.accountCard}>
-          <Avatar name={user?.name} size="lg" />
-          <Text style={[styles.name, { color: colors.heading }]}>{user?.name ?? '\u2014'}</Text>
-          <Text style={[styles.email, { color: colors.textSecondary }]}>{user?.email ?? '\u2014'}</Text>
-        </View>
+    <SafeAreaView style={[profileStyles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
+      <ScrollView contentContainerStyle={profileStyles.content} showsVerticalScrollIndicator={false}>
 
-        {/* Account info rows */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Info Akun</Text>
-          <View style={[styles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
-            <InfoRow icon="user" label="Nama" value={user?.name ?? '\u2014'} />
-            <Divider />
-            <InfoRow icon="mail" label="Email" value={user?.email ?? '\u2014'} />
+        {/* Avatar card */}
+        <View style={[profileStyles.avatarCard, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <View style={[profileStyles.avatar, { backgroundColor: `${colors.primary}22` }]}>
+            <Text style={[profileStyles.avatarText, { color: colors.primary }]}>{initials}</Text>
+          </View>
+          <View style={{ flex: 1, gap: 3 }}>
+            <Text style={[profileStyles.userName, { color: colors.heading }]}>{user?.name ?? '—'}</Text>
+            <Text style={[profileStyles.userEmail, { color: colors.textSecondary }]}>{user?.email ?? '—'}</Text>
+            <View style={[profileStyles.roleBadge, { backgroundColor: `${colors.primary}14` }]}>
+              <Text style={[profileStyles.roleText, { color: colors.primary }]}>Seller</Text>
+            </View>
           </View>
         </View>
 
+        {/* Account info */}
+        <SectionTitle label="INFO AKUN" />
+        <View style={[profileStyles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <InfoRow icon="user" label="Nama" value={user?.name ?? '—'} />
+          <InfoRow icon="mail" label="Email" value={user?.email ?? '—'} />
+        </View>
+
         {/* Appearance */}
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Tampilan</Text>
-          <View style={[styles.card, styles.themeRow, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+        <SectionTitle label="TAMPILAN" />
+        <View style={[profileStyles.card, { backgroundColor: colors.cardBg, borderColor: colors.border }]}>
+          <View style={profileStyles.themeRow}>
             {THEME_OPTIONS.map((opt) => {
               const active = mode === opt.value;
               return (
                 <TouchableOpacity
                   key={opt.value}
                   style={[
-                    styles.themeOption,
-                    active && { backgroundColor: colors.primaryLight },
+                    profileStyles.themeOpt,
+                    {
+                      backgroundColor: active ? `${colors.primary}18` : colors.surface2,
+                      borderColor: active ? colors.primary : 'transparent',
+                    },
                   ]}
                   onPress={() => setMode(opt.value)}
                 >
                   <Feather name={opt.icon} size={18} color={active ? colors.primary : colors.textSecondary} />
-                  <Text style={[styles.themeLabel, { color: active ? colors.primary : colors.textSecondary }]}>
+                  <Text style={[profileStyles.themeOptLabel, { color: active ? colors.primary : colors.textSecondary }]}>
                     {opt.label}
                   </Text>
+                  {active && (
+                    <View style={[profileStyles.themeCheck, { backgroundColor: colors.primary }]}>
+                      <Feather name="check" size={10} color="#fff" />
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
           </View>
         </View>
 
-        {/* Logout */}
-        <View style={styles.section}>
-          <Button 
-            label="Keluar" 
-            variant="danger" 
-            fullWidth 
-            onPress={handleLogoutPress} 
-            loading={isLoggingOut}
-          />
-        </View>
+        {/* Platform connections quick link */}
+        <SectionTitle label="TOKO & PLATFORM" />
+        <TouchableOpacity
+          style={[profileStyles.menuItem, { backgroundColor: colors.cardBg, borderColor: colors.border }]}
+          onPress={() => navigation.navigate('ConnectShop')}
+        >
+          <View style={[profileStyles.menuIcon, { backgroundColor: `${colors.primary}14` }]}>
+            <Feather name="link-2" size={18} color={colors.primary} />
+          </View>
+          <Text style={[profileStyles.menuLabel, { color: colors.textPrimary }]}>Hubungkan Toko Baru</Text>
+          <Feather name="chevron-right" size={16} color={colors.placeholder} />
+        </TouchableOpacity>
 
-        <Text style={[styles.version, { color: colors.placeholder }]}>LookUp v1.0.0</Text>
+        {/* Logout */}
+        <SectionTitle label="AKUN" />
+        <TouchableOpacity
+          style={[profileStyles.logoutBtn, { backgroundColor: colors.dangerLight, borderColor: `${colors.danger}30` }]}
+          onPress={handleLogout}
+          disabled={isLoggingOut}
+        >
+          <Feather name="log-out" size={18} color={colors.danger} />
+          <Text style={[profileStyles.logoutText, { color: colors.danger }]}>
+            {isLoggingOut ? 'Keluar...' : 'Keluar dari Akun'}
+          </Text>
+        </TouchableOpacity>
+
+        <Text style={[profileStyles.version, { color: colors.placeholder }]}>LookUp v1.0.0 · Open source</Text>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function InfoRow({ icon, label, value }: { icon: React.ComponentProps<typeof Feather>['name']; label: string; value: string }) {
-  const { colors } = useTheme();
-  return (
-    <View style={styles.infoRow}>
-      <View style={[styles.infoIcon, { backgroundColor: colors.inputBg }]}>
-        <Feather name={icon} size={16} color={colors.textSecondary} />
-      </View>
-      <View style={styles.infoText}>
-        <Text style={[styles.infoLabel, { color: colors.textSecondary }]}>{label}</Text>
-        <Text style={[styles.infoValue, { color: colors.textPrimary }]}>{value}</Text>
-      </View>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
+const profileStyles = StyleSheet.create({
   safe: { flex: 1 },
-  content: { padding: 16, gap: 20 },
-  accountCard: {
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 24,
-  },
-  name: { fontSize: 18, fontWeight: '700', marginTop: 8 },
-  email: { fontSize: 14 },
-  section: { gap: 12 },
-  sectionTitle: { fontSize: 14, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
-  card: {
-    borderRadius: 14,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 },
-  infoIcon: {
-    width: 32, height: 32, borderRadius: 8,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  infoText: { flex: 1 },
-  infoLabel: { fontSize: 12 },
-  infoValue: { fontSize: 15, fontWeight: '500', marginTop: 2 },
-  themeRow: { flexDirection: 'row', padding: 6, gap: 6 },
-  themeOption: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  themeLabel: { fontSize: 12, fontWeight: '600' },
+  content: { padding: 16, gap: 10, paddingBottom: 40 },
+  sectionTitle: { fontSize: 10, fontWeight: '700', letterSpacing: 1.2, marginTop: 10 },
+
+  avatarCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, borderRadius: 18, borderWidth: 1 },
+  avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 20, fontWeight: '800' },
+  userName: { fontSize: 16, fontWeight: '700' },
+  userEmail: { fontSize: 13 },
+  roleBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 100, marginTop: 2 },
+  roleText: { fontSize: 11, fontWeight: '700' },
+
+  card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderBottomWidth: 1 },
+  infoIcon: { width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  infoLabel: { fontSize: 11, marginBottom: 2 },
+  infoValue: { fontSize: 14, fontWeight: '500' },
+
+  themeRow: { flexDirection: 'row', gap: 8, padding: 10 },
+  themeOpt: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 12, borderRadius: 12, borderWidth: 1.5, position: 'relative' },
+  themeOptLabel: { fontSize: 12, fontWeight: '600' },
+  themeCheck: { position: 'absolute', top: 6, right: 6, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+
+  menuItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 16, borderWidth: 1 },
+  menuIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  menuLabel: { flex: 1, fontSize: 14, fontWeight: '500' },
+
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, height: 50, borderRadius: 14, borderWidth: 1 },
+  logoutText: { fontSize: 15, fontWeight: '700' },
   version: { textAlign: 'center', fontSize: 12, marginTop: 8 },
 });

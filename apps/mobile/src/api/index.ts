@@ -17,6 +17,11 @@ export const productsApi = {
     return data;
   },
 
+  syncProducts: async (shopId: string) => {
+    const { data } = await apiClient.post('/api/products/sync', { shopId });
+    return data.data;
+  },
+
   detail: async (productId: string, shopId: string): Promise<ProductDetail> => {
     const { data } = await apiClient.get(`/api/products/${productId}`, { params: { shopId } });
     return data.data.product;

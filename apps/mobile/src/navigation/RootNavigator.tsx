@@ -2,12 +2,13 @@
 import React, { useEffect, useRef } from 'react';
 import { NavigationContainer, DefaultTheme, DarkTheme, type Theme } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { createNavigationContainerRef, type NavigationContainerRef } from '@react-navigation/core';
+import { createNavigationContainerRef } from '@react-navigation/core';
 import { ActivityIndicator, View } from 'react-native';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/hooks/useTheme';
 
 // Auth screens
+import { LandingScreen } from '@/screens/LandingScreen';
 import { LoginScreen } from '@/screens/LoginScreen';
 import { RegisterScreen } from '@/screens/RegisterScreen';
 
@@ -25,8 +26,6 @@ import { ProfileScreen } from '@/screens/ProfileScreen';
 import type { RootStackParamList } from '@/types';
 
 const Stack = createStackNavigator<RootStackParamList>();
-
-// Create navigation ref for use in effects
 const navigationRef = createNavigationContainerRef<RootStackParamList>();
 
 export function RootNavigator() {
@@ -34,31 +33,18 @@ export function RootNavigator() {
   const { colors, scheme } = useTheme();
   const prevAuthRef = useRef(isAuthenticated);
 
-  useEffect(() => {
-    initialize();
-  }, []);
+  useEffect(() => { initialize(); }, []);
 
-  // Handle auth state changes - navigate to appropriate screen
   useEffect(() => {
     if (!isInitialized) return;
-    
     const prevAuth = prevAuthRef.current;
     prevAuthRef.current = isAuthenticated;
-    
-    // If user just logged out (was authenticated, now not), reset to Login
+
     if (prevAuth && !isAuthenticated) {
-      navigationRef.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
+      navigationRef.reset({ index: 0, routes: [{ name: 'Landing' }] });
     }
-    
-    // If user just logged in (was not authenticated, now is), reset to MainTabs
     if (!prevAuth && isAuthenticated) {
-      navigationRef.reset({
-        index: 0,
-        routes: [{ name: 'MainTabs' }],
-      });
+      navigationRef.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
     }
   }, [isAuthenticated, isInitialized]);
 
@@ -87,6 +73,7 @@ export function RootNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!isAuthenticated ? (
           <>
+            <Stack.Screen name="Landing" component={LandingScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
           </>
@@ -96,19 +83,79 @@ export function RootNavigator() {
             <Stack.Screen
               name="ProductDetail"
               component={ProductDetailScreen}
-              options={{ headerShown: true, title: '', headerBackTitle: '' }}
+              options={{
+                headerShown: true, title: '',
+                headerStyle: { backgroundColor: colors.background },
+                headerTintColor: colors.textPrimary,
+                headerShadowVisible: false,
+              }}
             />
-            <Stack.Screen name="EditStock" component={EditStockScreen} options={{ presentation: 'modal', headerShown: true, title: 'Edit Stok' }} />
-            <Stack.Screen name="EditPrice" component={EditPriceScreen} options={{ presentation: 'modal', headerShown: true, title: 'Edit Harga' }} />
-            <Stack.Screen name="EditImage" component={EditImageScreen} options={{ presentation: 'modal', headerShown: true, title: 'Edit Gambar' }} />
-            <Stack.Screen name="ConnectShop" component={ConnectShopScreen} options={{ presentation: 'modal', headerShown: true, title: 'Hubungkan Toko' }} />
-            <Stack.Screen name="BulkStockUpdate" component={BulkStockUpdateScreen} options={{ presentation: 'modal', headerShown: true, title: 'Update Stok Massal' }} />
-            <Stack.Screen name="BulkPriceUpdate" component={BulkPriceUpdateScreen} options={{ presentation: 'modal', headerShown: true, title: 'Update Harga Massal' }} />
-            <Stack.Screen name="BulkProgress" component={BulkProgressScreen} options={{ presentation: 'modal', headerShown: false, gestureEnabled: false }} />
             <Stack.Screen
-              name="Profile"
-              component={ProfileScreen}
-              options={{ headerShown: true, title: 'Profil', headerBackTitle: '' }}
+              name="EditStock" component={EditStockScreen}
+              options={{
+                presentation: 'modal', headerShown: true, title: 'Edit Stok',
+                headerStyle: { backgroundColor: colors.cardBg },
+                headerTintColor: colors.textPrimary,
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
+              name="EditPrice" component={EditPriceScreen}
+              options={{
+                presentation: 'modal', headerShown: true, title: 'Edit Harga',
+                headerStyle: { backgroundColor: colors.cardBg },
+                headerTintColor: colors.textPrimary,
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
+              name="EditImage" component={EditImageScreen}
+              options={{
+                presentation: 'modal', headerShown: true, title: 'Edit Gambar',
+                headerStyle: { backgroundColor: colors.cardBg },
+                headerTintColor: colors.textPrimary,
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
+              name="ConnectShop" component={ConnectShopScreen}
+              options={{
+                presentation: 'modal', headerShown: true, title: 'Hubungkan Toko',
+                headerStyle: { backgroundColor: colors.cardBg },
+                headerTintColor: colors.textPrimary,
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
+              name="BulkStockUpdate" component={BulkStockUpdateScreen}
+              options={{
+                presentation: 'modal', headerShown: true, title: 'Update Stok Massal',
+                headerStyle: { backgroundColor: colors.cardBg },
+                headerTintColor: colors.textPrimary,
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
+              name="BulkPriceUpdate" component={BulkPriceUpdateScreen}
+              options={{
+                presentation: 'modal', headerShown: true, title: 'Update Harga Massal',
+                headerStyle: { backgroundColor: colors.cardBg },
+                headerTintColor: colors.textPrimary,
+                headerShadowVisible: false,
+              }}
+            />
+            <Stack.Screen
+              name="BulkProgress" component={BulkProgressScreen}
+              options={{ presentation: 'modal', headerShown: false, gestureEnabled: false }}
+            />
+            <Stack.Screen
+              name="Profile" component={ProfileScreen}
+              options={{
+                headerShown: true, title: 'Profil',
+                headerStyle: { backgroundColor: colors.background },
+                headerTintColor: colors.textPrimary,
+                headerShadowVisible: false,
+              }}
             />
           </>
         )}
@@ -117,5 +164,4 @@ export function RootNavigator() {
   );
 }
 
-// Export navigation ref for use in deep linking and other places
 export { navigationRef };
